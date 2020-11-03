@@ -57,6 +57,7 @@ Default configuration:
   ],
   "MaintainLiftPositionWhenHeightChanges": false,
   "EnsureConsistentOwner": true,
+  "EnableSpeedOptions": true,
   "DefaultSpeed": {
     "BaseSpeed": 1.5,
     "SpeedIncreasePerFloor": 0.0,
@@ -96,6 +97,7 @@ Default configuration:
 - `MaintainLiftPositionWhenHeightChanges` (`true` or `false`) -- While `true`, causes the lift to keeps its position and velocity when an elevator is added or removed above it. This avoids the annoying vanilla behavior where the lift is destroyed and rebuilt at the top every time the height changes.
   - Tip: You can combine this behavior with powerless elevators to continuously build upward by alternating between deploying an elevator above you and moving the lift.
 - `EnsureConsistentOwner` (`true` or `false`) -- While `true`, deploying an elevator on top of another will assign the new elevator's `OwnerID` to the same value as the one below it, instead of using the deploying player's steam id. This improves the predictability of permission-based features, especially speed, by effectively ensuring that the player who placed the bottom elevator determines the elevator's capabilities.
+- `EnableSpeedOptions` (`true` or `false`) -- Must be `true` for the `DefaultSpeed` and `SpeedsRequiringPermission` options to apply. You may set this to `false` to disable this plugin's speed features, if you desire to use other plugins to control elevator speed. Note: If you disable speed features after using them for a bit, some elevators may still have their speed altered.
 - `DefaultSpeed` -- This speed applies to all elevators except those belonging to players with additional permissions.
   - `BaseSpeed` -- Minimum speed that the lift will move regardless of the number of floors being travelled.
   - `SpeedIncreasePerFloor` -- This causes the elevator to have dynamically calculated speed based on the number of floors being travelled at once, allowing players to travel long distances more quickly. Setting this to the same value as `BaseSpeed`, with a sufficiently high `MaxSpeed`, will cause the elevator to always take the same amount of time to travel any distance.
@@ -115,12 +117,6 @@ Default configuration:
 }
 ```
 
-## Plugin Compabitility
-
-This plugin conflicts with other plugins that alter elevator speed. If you have such plugins, it's recommended that you disable their speed altering features.
-
-Any plugin that builds elevators without setting the `OwnerID` may prevent most permission-based features of this plugin from working for that elevator.
-
 ## Developer Hooks
 
 #### OnElevatorFloorSelect
@@ -133,4 +129,4 @@ Any plugin that builds elevators without setting the `OwnerID` may prevent most 
 object OnElevatorFloorSelect(ElevatorLift lift, BasePlayer player, int targetFloor)
 ```
 
-Note: The `targetFloor` is 0-based, so the bottom elevator will be 0.
+Note: The `targetFloor` is 0-based, so if the player enters `1`, `targetFloor` will be `0`.

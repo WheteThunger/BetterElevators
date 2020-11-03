@@ -178,7 +178,7 @@ namespace Oxide.Plugins
                 elevator.liftEntity = lift;
                 elevatorBelow.liftEntity = null;
 
-                var powerCounter = lift.GetComponentInChildren<PowerCounter>();
+                var powerCounter = GetLiftCounter(lift);
                 if (powerCounter != null && !permission.UserHasPermission(elevatorBelow.OwnerID.ToString(), PermissionPowerless))
                     powerCounter.SetFlag(BaseEntity.Flags.Reserved8, false);
 
@@ -221,7 +221,7 @@ namespace Oxide.Plugins
             elevatorBelow.liftEntity = lift;
             topElevator.liftEntity = null;
 
-            var powerCounter = lift.GetComponentInChildren<PowerCounter>();
+            var powerCounter = GetLiftCounter(lift);
             if (powerCounter != null && !permission.UserHasPermission(elevatorBelow.OwnerID.ToString(), PermissionPowerless))
                 powerCounter.SetFlag(BaseEntity.Flags.Reserved8, false);
 
@@ -238,17 +238,27 @@ namespace Oxide.Plugins
 
         private void OnElevatorMove(Elevator elevator, int targetFloor)
         {
+            var lift = elevator.liftEntity;
+            if (lift == null)
+                return;
+
             var liftFloor = elevator.LiftPositionToFloor();
             if (targetFloor == liftFloor || !elevator.IsValidFloor(targetFloor))
                 return;
 
-            var speedConfig = GetPlayerSpeedConfig(elevator.OwnerID);
-            elevator.LiftSpeedPerMetre = speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
+            if (pluginConfig.enableSpeedOptions)
+            {
+                var speedConfig = GetPlayerSpeedConfig(elevator.OwnerID);
+                elevator.LiftSpeedPerMetre = speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
+            }
 
-            var worldSpaceFloorPosition = elevator.GetWorldSpaceFloorPosition(targetFloor);
-            var vector = elevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
-            var distance = Mathf.Abs(elevator.liftEntity.transform.localPosition.y - vector.y);
-            StartMoveLiftTimer(elevator.liftEntity, distance, elevator.LiftSpeedPerMetre);
+            if (GetLiftCounter(lift) != null)
+            {
+                var worldSpaceFloorPosition = elevator.GetWorldSpaceFloorPosition(targetFloor);
+                var vector = elevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
+                var distance = Mathf.Abs(lift.transform.localPosition.y - vector.y);
+                StartMoveLiftTimer(lift, distance, elevator.LiftSpeedPerMetre);
+            }
         }
 
         private void OnElevatorSaved(Elevator elevator, BaseNetworkable.SaveInfo info)
@@ -323,7 +333,7 @@ namespace Oxide.Plugins
                 return null;
 
             // Have the counter follow the elevator's power state
-            var powerCounter = lift.GetComponentInChildren<PowerCounter>();
+            var powerCounter = GetLiftCounter(lift);
             if (powerCounter != null)
                 powerCounter.SetFlag(BaseEntity.Flags.Reserved8, powerless || inputAmount > 0 && inputAmount >= ioEntity.ConsumptionAmount());
 
@@ -406,6 +416,18 @@ namespace Oxide.Plugins
             UnityEngine.Object.DestroyImmediate(entity.GetComponent<DestroyOnGroundMissing>());
         }
 
+        private PowerCounter GetLiftCounter(ElevatorLift lift)
+        {
+            foreach (var child in lift.children)
+            {
+                var counter = child as PowerCounter;
+                if (counter != null)
+                    return counter;
+            }
+
+            return null;
+        }
+
         private void MoveLift(Elevator newTopElevator, ElevatorLift lift, float localY, float speed)
         {
             var distance = Math.Abs(lift.transform.localPosition.y - localY);
@@ -445,7 +467,7 @@ namespace Oxide.Plugins
 
         private void UpdateFloorCounter(ElevatorLift lift)
         {
-            var counter = lift.GetComponentInChildren<PowerCounter>();
+            var counter = GetLiftCounter(lift);
             if (counter == null)
                 return;
 
@@ -536,6 +558,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("EnsureConsistentOwner")]
             public bool ensureConsistentOwner = true;
+
+            [JsonProperty("EnableSpeedOptions")]
+            public bool enableSpeedOptions = true;
 
             [JsonProperty("DefaultSpeed")]
             public SpeedConfig defaultSpeed = new SpeedConfig()
