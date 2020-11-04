@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.0.0")]
+    [Info("Better Elevators", "WhiteThunder", "1.0.1")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -19,6 +19,7 @@ namespace Oxide.Plugins
         private const int VanillaMaxFloors = 6;
         private const float ElevatorHeight = 3;
         private const float ElevatorLiftLocalOffsetY = 1;
+        private const float MaxCounterUpdateFrequency = 0.4f;
 
         private const string PermissionPowerless = "betterelevators.powerless";
         private const string PermissionLiftCounter = "betterelevators.liftcounter";
@@ -51,11 +52,6 @@ namespace Oxide.Plugins
             foreach (var speedConfig in pluginConfig.speedsRequiringPermission)
                 if (!string.IsNullOrWhiteSpace(speedConfig.name))
                     permission.RegisterPermission(GetSpeedPermission(speedConfig.name), this);
-
-            if (!pluginConfig.maintainLiftPositionWhenHeightChanges)
-            {
-                Unsubscribe(nameof(OnEntityKill));
-            }
         }
 
         private void OnServerInitialized(bool initialBoot)
@@ -236,6 +232,11 @@ namespace Oxide.Plugins
             }
         }
 
+        private void OnEntityKill(ElevatorLift lift)
+        {
+            liftTimerActions.Remove(lift.net.ID);
+        }
+
         private void OnElevatorMove(Elevator elevator, int targetFloor)
         {
             var lift = elevator.liftEntity;
@@ -257,7 +258,7 @@ namespace Oxide.Plugins
                 var worldSpaceFloorPosition = elevator.GetWorldSpaceFloorPosition(targetFloor);
                 var vector = elevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
                 var distance = Mathf.Abs(lift.transform.localPosition.y - vector.y);
-                StartMoveLiftTimer(lift, distance, elevator.LiftSpeedPerMetre);
+                StartUpdatingLiftCounter(lift, distance, elevator.LiftSpeedPerMetre);
             }
         }
 
@@ -437,11 +438,15 @@ namespace Oxide.Plugins
             newTopElevator.SetFlag(BaseEntity.Flags.Busy, true);
             newTopElevator.Invoke(newTopElevator.ClearBusy, travelTime);
 
-            StartMoveLiftTimer(lift, distance, speed);
+            StartUpdatingLiftCounter(lift, distance, speed);
         }
 
-        private void StartMoveLiftTimer(ElevatorLift lift, float distance, float speed)
+        private void StartUpdatingLiftCounter(ElevatorLift lift, float distance, float speed)
         {
+            var liftCounter = GetLiftCounter(lift);
+            if (liftCounter == null)
+                return;
+
             Action existingTimerAction;
             if (liftTimerActions.TryGetValue(lift.net.ID, out existingTimerAction))
                 lift.CancelInvoke(existingTimerAction);
@@ -453,26 +458,34 @@ namespace Oxide.Plugins
             var floorsMoved = 0;
             var timeToNextFloor = remainderDistance > 0 ? remainderDistance / speed : timePerFloor;
 
+            var lastCounterUpdateTime = Time.time;
             Action timerAction = null;
             timerAction = () =>
             {
-                UpdateFloorCounter(lift);
                 floorsMoved++;
-                if (floorsMoved >= floorsToMove)
+
+                var reachedEnd = floorsMoved >= floorsToMove;
+                if (reachedEnd || Time.time >= lastCounterUpdateTime + MaxCounterUpdateFrequency)
+                {
+                    UpdateFloorCounter(lift, liftCounter);
+                    lastCounterUpdateTime = Time.time;
+                }
+
+                if (reachedEnd)
+                {
                     lift.CancelInvoke(timerAction);
+                    liftTimerActions.Remove(lift.net.ID);
+                }
             };
             lift.InvokeRepeating(timerAction, timeToNextFloor, timePerFloor);
             liftTimerActions[lift.net.ID] = timerAction;
         }
 
-        private void UpdateFloorCounter(ElevatorLift lift)
+        private void UpdateFloorCounter(ElevatorLift lift, PowerCounter counter)
         {
-            var counter = GetLiftCounter(lift);
-            if (counter == null)
-                return;
-
+            // Get the elevator on every update, since the lift can be re-parented
             var elevator = lift.GetParentEntity() as Elevator;
-            if (elevator == null)
+            if (elevator == null || counter == null)
                 return;
 
             var floor = elevator.LiftPositionToFloor() + 1;

@@ -14,7 +14,7 @@
 - `betterelevators.liftcounter` -- Elevators deployed by players with this permission automatically have a counter attached to the lift which shows the current floor and can be used to select a destination floor.
   - Cannot be used while building blocked, due to client-side limitations.
   - Cannot be used while the lift does not have power, unless the elevator is powerless.
-  - Cannot be used to select a floor higher than 100, or display higher than 100, due to game limitations.
+  - Cannot be used to select a floor higher than 100, due to game limitations.
 
 ### Max floor permissions
 
