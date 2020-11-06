@@ -1,5 +1,3 @@
-**Requires Oxide v2.0.4816 or later. You can check your current version with `o.version` in the server console.**
-
 ## Features
 
 - Build elevators taller than 6 floors **without players running commands**. Supports a global default limit, as well as multiple permission-based limits.
