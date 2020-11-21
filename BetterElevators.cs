@@ -507,15 +507,6 @@ namespace Oxide.Plugins
 
         private string GetMaxFloorsPermission(int maxFloors) => $"{PermissionMaxFloorsPrefix}.{maxFloors}";
 
-        private int GetElevatorMaxFloors(Elevator elevator)
-        {
-            var ownerId = elevator.OwnerID;
-            if (ownerId == 0)
-                return pluginConfig.defaultMaxFloors;
-
-            return GetPlayerMaxFloors(elevator.OwnerID.ToString());
-        }
-
         private Elevator GetTopElevator(Elevator elevator)
         {
             var currentElevator = elevator;
