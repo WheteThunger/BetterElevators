@@ -345,6 +345,14 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private object OnEntityTakeDamage(PowerCounter counter)
+        {
+            if (counter != null && counter.GetParentEntity() is ElevatorLift)
+                return false;
+
+            return null;
+        }
+
         #endregion
 
         #region Helper Methods
