@@ -5,6 +5,7 @@ using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using UnityEngine;
 
@@ -167,8 +168,8 @@ namespace Oxide.Plugins
             var lift = elevatorBelow.liftEntity;
             if (lift != null && pluginConfig.maintainLiftPositionWhenHeightChanges)
             {
-                float originalLocalY, originalTime, speed;
-                var didCancelAnimation = CancelTweenAndExtractDetails(lift, out originalLocalY, out originalTime, out speed);
+                int targetFloor;
+                bool didStopMovement = StopLiftMovement(lift, elevatorBelow, out targetFloor);
 
                 lift.SetParent(elevator, worldPositionStays: true, sendImmediate: true);
                 elevator.liftEntity = lift;
@@ -178,10 +179,13 @@ namespace Oxide.Plugins
                 if (powerCounter != null && !permission.UserHasPermission(elevatorBelow.OwnerID.ToString(), PermissionPowerless))
                     powerCounter.SetFlag(BaseEntity.Flags.Reserved8, false);
 
-                if (didCancelAnimation)
+                if (didStopMovement)
                 {
-                    var newLocalY = originalLocalY - ElevatorHeight;
-                    MoveLift(elevator, lift, newLocalY, speed);
+                    NextTick(() =>
+                    {
+                        if (elevator != null)
+                            RestartLiftMovement(elevator, targetFloor);
+                    });
                 }
             }
         }
@@ -208,10 +212,8 @@ namespace Oxide.Plugins
             if (liftFloor > elevatorBelow.Floor)
                 return;
 
-            float originalLocalY;
-            float originalTime;
-            float speed;
-            bool didCancelAnimation = CancelTweenAndExtractDetails(lift, out originalLocalY, out originalTime, out speed);
+            int targetFloor;
+            bool didStopMovement = StopLiftMovement(lift, topElevator, out targetFloor);
             
             lift.SetParent(elevatorBelow, worldPositionStays: true, sendImmediate: true);
             elevatorBelow.liftEntity = lift;
@@ -221,14 +223,10 @@ namespace Oxide.Plugins
             if (powerCounter != null && !permission.UserHasPermission(elevatorBelow.OwnerID.ToString(), PermissionPowerless))
                 powerCounter.SetFlag(BaseEntity.Flags.Reserved8, false);
 
-            if (didCancelAnimation)
+            if (didStopMovement)
             {
                 CancelHorseDropToGround(lift);
-
-                var maxLocalY = ElevatorLiftLocalOffsetY;
-                var floorDiff = topElevator.Floor - elevatorBelow.Floor;
-                var newLocalY = Math.Min(originalLocalY + ElevatorHeight * floorDiff, maxLocalY);
-                MoveLift(elevatorBelow, lift, newLocalY, speed);
+                RestartLiftMovement(elevatorBelow, Math.Min(targetFloor, elevatorBelow.Floor));
             }
         }
 
@@ -237,29 +235,103 @@ namespace Oxide.Plugins
             liftTimerActions.Remove(lift.net.ID);
         }
 
-        private void OnElevatorMove(Elevator elevator, int targetFloor)
+        private void RestartLiftMovement(Elevator elevator, int targetFloor)
+        {
+            var lift = elevator.liftEntity;
+            if (lift != null)
+            {
+                lift.ToggleHurtTrigger(false);
+            }
+
+            elevator.ClearBusy();
+            elevator.CancelInvoke(elevator.ClearBusy);
+
+            var ioEntity = elevator.ioEntity;
+            if (ioEntity != null)
+            {
+                ioEntity.SetFlag(BaseEntity.Flags.Busy, false);
+                elevator.ioEntity.SendChangedToRoot(forceUpdate: true);
+            }
+
+            float timeToTravel;
+            elevator.RequestMoveLiftTo(targetFloor, out timeToTravel);
+        }
+
+        private object OnElevatorMove(Elevator elevator, int targetFloor)
         {
             var lift = elevator.liftEntity;
             if (lift == null)
-                return;
+                return null;
 
             var liftFloor = elevator.LiftPositionToFloor();
-            if (targetFloor == liftFloor || !elevator.IsValidFloor(targetFloor))
-                return;
+            if (targetFloor == liftFloor)
+                return null;
+
+            Vector3 worldSpaceFloorPosition = elevator.GetWorldSpaceFloorPosition(targetFloor);
+            Vector3 vector = elevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
+
+            var distance = Mathf.Abs(lift.transform.localPosition.y - vector.y);
+            float timeToTravel = distance / elevator.LiftSpeedPerMetre;
 
             if (pluginConfig.enableSpeedOptions)
             {
+                // Duplicating vanilla logic since this is replacing default movement
+                if (elevator.IsBusy())
+                    return false;
+                if (elevator.ioEntity != null && !elevator.ioEntity.IsPowered())
+                    return false;
+                if (!elevator.IsValidFloor(targetFloor))
+                    return false;
+                if (!lift.CanMove())
+                    return false;
+
+                // Custom speed logic
                 var speedConfig = GetPlayerSpeedConfig(elevator.OwnerID);
                 elevator.LiftSpeedPerMetre = speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
+
+                LeanTweenType leanTweenType;
+                switch (speedConfig.GetEaseType())
+                {
+                    case EaseType.Quadratic:
+                        timeToTravel = Convert.ToSingle(Math.Sqrt(distance)) / speedConfig.baseSpeed;
+                        leanTweenType = LeanTweenType.easeInOutQuad;
+                        break;
+
+                    case EaseType.Cubic:
+                        timeToTravel = Convert.ToSingle(Math.Pow(distance, 1.0 / 3.0)) / speedConfig.baseSpeed;
+                        leanTweenType = LeanTweenType.easeInOutCubic;
+                        break;
+
+                    default:
+                        timeToTravel = distance / elevator.LiftSpeedPerMetre;
+                        leanTweenType = LeanTweenType.linear;
+                        break;
+                }
+
+                LeanTween.moveLocalY(lift.gameObject, vector.y, timeToTravel).setEase(leanTweenType);
+
+                // Duplicating vanilla logic since this is replacing default movement
+                elevator.SetFlag(BaseEntity.Flags.Busy, true);
+                if (targetFloor < elevator.Floor)
+                {
+                    lift.ToggleHurtTrigger(true);
+                }
+                elevator.Invoke(elevator.ClearBusy, timeToTravel);
+                if (elevator.ioEntity != null)
+                {
+                    elevator.ioEntity.SetFlag(BaseEntity.Flags.Busy, true);
+                    elevator.ioEntity.SendChangedToRoot(forceUpdate: true);
+                }
             }
 
-            if (GetLiftCounter(lift) != null)
-            {
-                var worldSpaceFloorPosition = elevator.GetWorldSpaceFloorPosition(targetFloor);
-                var vector = elevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
-                var distance = Mathf.Abs(lift.transform.localPosition.y - vector.y);
-                StartUpdatingLiftCounter(lift, distance, elevator.LiftSpeedPerMetre);
-            }
+            if (GetLiftCounter(lift) != null && timeToTravel > 0)
+                StartUpdatingLiftCounter(lift, timeToTravel);
+
+            // Disable vanilla movement since we are using custom movement
+            if (pluginConfig.enableSpeedOptions)
+                return false;
+
+            return null;
         }
 
         private void OnEntitySaved(Elevator elevator, BaseNetworkable.SaveInfo info)
@@ -373,25 +445,18 @@ namespace Oxide.Plugins
             }
         }
 
-        private bool CancelTweenAndExtractDetails(ElevatorLift lift, out float originalLocalY, out float originalTime, out float speed)
+        private bool StopLiftMovement(ElevatorLift lift, Elevator topElevator, out int targetFloor)
         {
             var tweens = LeanTween.descriptions(lift.gameObject);
-            originalLocalY = 0;
-            originalTime = 0;
-            speed = 0;
+            targetFloor = 0;
 
             if (tweens.Length == 0)
                 return false;
 
             // we only expect one tween to be running for each elevator at a time
             var tween = tweens[0];
-
-            originalLocalY = tween.to.x;
-            originalTime = tween.time;
-
-            var remainingDistance = Math.Abs(lift.transform.localPosition.y - originalLocalY);
-            var originalDistance = remainingDistance / (1 - tween.ratioPassed);
-            speed = originalDistance / tween.time;
+            var originalLocalY = tween.to.x;
+            targetFloor = topElevator.Floor + (int)((originalLocalY - ElevatorLiftLocalOffsetY) / ElevatorHeight);
 
             LeanTween.cancel(tween.uniqueId);
             return true;
@@ -437,19 +502,7 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private void MoveLift(Elevator newTopElevator, ElevatorLift lift, float localY, float speed)
-        {
-            var distance = Math.Abs(lift.transform.localPosition.y - localY);
-            var travelTime = distance / speed;
-            LeanTween.moveLocalY(lift.gameObject, localY, travelTime);
-
-            newTopElevator.SetFlag(BaseEntity.Flags.Busy, true);
-            newTopElevator.Invoke(newTopElevator.ClearBusy, travelTime);
-
-            StartUpdatingLiftCounter(lift, distance, speed);
-        }
-
-        private void StartUpdatingLiftCounter(ElevatorLift lift, float distance, float speed)
+        private void StartUpdatingLiftCounter(ElevatorLift lift, float timeToTravel)
         {
             var liftCounter = GetLiftCounter(lift);
             if (liftCounter == null)
@@ -459,20 +512,14 @@ namespace Oxide.Plugins
             if (liftTimerActions.TryGetValue(lift.net.ID, out existingTimerAction))
                 lift.CancelInvoke(existingTimerAction);
 
-            var remainderDistance = distance % ElevatorHeight;
-            var timePerFloor = ElevatorHeight / speed;
-            var floorsToMove = (int)Math.Ceiling(distance / ElevatorHeight);
-
-            var floorsMoved = 0;
-            var timeToNextFloor = remainderDistance > 0 ? remainderDistance / speed : timePerFloor;
-
             var lastCounterUpdateTime = Time.time;
             Action timerAction = null;
+            var stepsRemaining = timeToTravel / MaxCounterUpdateFrequency;
             timerAction = () =>
             {
-                floorsMoved++;
+                stepsRemaining--;
 
-                var reachedEnd = floorsMoved >= floorsToMove;
+                var reachedEnd = stepsRemaining <= 0;
                 if (reachedEnd || Time.time >= lastCounterUpdateTime + MaxCounterUpdateFrequency)
                 {
                     UpdateFloorCounter(lift, liftCounter);
@@ -485,7 +532,7 @@ namespace Oxide.Plugins
                     liftTimerActions.Remove(lift.net.ID);
                 }
             };
-            lift.InvokeRepeating(timerAction, timeToNextFloor, timePerFloor);
+            lift.InvokeRepeating(timerAction, MaxCounterUpdateFrequency, MaxCounterUpdateFrequency);
             liftTimerActions[lift.net.ID] = timerAction;
         }
 
@@ -497,6 +544,9 @@ namespace Oxide.Plugins
                 return;
 
             var floor = elevator.LiftPositionToFloor() + 1;
+
+            if (counter.counterNumber == floor)
+                return;
 
             counter.counterNumber = floor;
             counter.targetCounterNumber = floor;
@@ -577,9 +627,7 @@ namespace Oxide.Plugins
             [JsonProperty("DefaultSpeed")]
             public SpeedConfig defaultSpeed = new SpeedConfig()
             {
-                baseSpeed = 1.5f,
-                speedPerAdditionalFloor = 0,
-                maxSpeed = 1.5f,
+                baseSpeed = 1.5f
             };
 
             [JsonProperty("SpeedsRequiringPermission")]
@@ -588,31 +636,29 @@ namespace Oxide.Plugins
                 new SpeedConfig()
                 {
                     name = "2x",
-                    baseSpeed = 3f,
-                    maxSpeed = 3,
+                    baseSpeed = 3f
                 },
                 new SpeedConfig
                 {
                     name = "4x",
-                    baseSpeed = 6,
-                    maxSpeed = 6,
+                    baseSpeed = 6
                 },
                 new SpeedConfig
                 {
-                    name = "2-4x",
-                    baseSpeed = 3f,
-                    speedPerAdditionalFloor = 1,
-                    maxSpeed = 6,
+                    name = "1x.quadratic",
+                    baseSpeed = 0.86f,
+                    easeType = EaseType.Quadratic.ToString()
                 },
                 new SpeedConfig
                 {
-                    name = "2-8x",
-                    baseSpeed = 3f,
-                    speedPerAdditionalFloor = 1,
-                    maxSpeed = 12,
+                    name = "1x.cubic",
+                    baseSpeed = 0.72f,
+                    easeType = EaseType.Cubic.ToString()
                 },
             };
         }
+
+        internal enum EaseType { Linear, Quadratic, Cubic }
 
         internal class SpeedConfig
         {
@@ -622,14 +668,24 @@ namespace Oxide.Plugins
             [JsonProperty("BaseSpeed")]
             public float baseSpeed = 1.5f;
 
-            [JsonProperty("SpeedIncreasePerFloor")]
+            [JsonProperty("SpeedIncreasePerFloor", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float speedPerAdditionalFloor = 0;
 
-            [JsonProperty("MaxSpeed")]
+            [JsonProperty("MaxSpeed", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            [DefaultValue(1.5f)]
             public float maxSpeed = 1.5f;
+
+            [JsonProperty("EaseType")]
+            public string easeType = "Linear";
 
             public float GetSpeedForLevels(int levels) =>
                 Math.Min(Math.Max(baseSpeed, maxSpeed), baseSpeed + (levels - 1) * speedPerAdditionalFloor);
+
+            public EaseType GetEaseType()
+            {
+                EaseType parsedEaseType;
+                return Enum.TryParse(easeType, out parsedEaseType) ? parsedEaseType : EaseType.Linear;
+            }
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
