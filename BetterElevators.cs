@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.0.1")]
+    [Info("Better Elevators", "WhiteThunder", "1.0.2")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -262,7 +262,7 @@ namespace Oxide.Plugins
             }
         }
 
-        private void OnElevatorSaved(Elevator elevator, BaseNetworkable.SaveInfo info)
+        private void OnEntitySaved(Elevator elevator, BaseNetworkable.SaveInfo info)
         {
             // This is where the magic happens... thanks to @JakeRich
             if (!info.forDisk)
