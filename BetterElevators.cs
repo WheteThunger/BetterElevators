@@ -589,6 +589,13 @@ namespace Oxide.Plugins
 
         private void InitializeCounter(PowerCounter counter, int floor)
         {
+            // Trick to hide the inputs and outputs on the client
+            for (var i = 0; i < counter.inputs.Length; i++)
+                counter.inputs[i].type = IOEntity.IOType.Generic;
+
+            for (var i = 0; i < counter.outputs.Length; i++)
+                counter.outputs[i].type = IOEntity.IOType.Generic;
+
             counter.SetFlag(IOEntity.Flag_HasPower, true);
             counter.SetFlag(BaseEntity.Flags.Busy, false);
             counter.counterNumber = floor;
