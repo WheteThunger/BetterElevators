@@ -590,6 +590,7 @@ namespace Oxide.Plugins
         private void InitializeCounter(PowerCounter counter, int floor)
         {
             counter.SetFlag(IOEntity.Flag_HasPower, true);
+            counter.SetFlag(BaseEntity.Flags.Busy, false);
             counter.counterNumber = floor;
             counter.targetCounterNumber = floor;
             counter.SendNetworkUpdate();
@@ -598,6 +599,7 @@ namespace Oxide.Plugins
         private void ResetCounter(PowerCounter counter)
         {
             counter.SetFlag(IOEntity.Flag_HasPower, false);
+            counter.SetFlag(BaseEntity.Flags.Busy, true);
             counter.counterNumber = 0;
             counter.targetCounterNumber = 0;
             counter.SendNetworkUpdate();
