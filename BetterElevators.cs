@@ -99,25 +99,25 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(ElevatorLift lift)
         {
-            var elevator = lift.GetParentEntity() as Elevator;
-            if (elevator == null)
+            var topElevator = lift.GetParentEntity() as Elevator;
+            if (topElevator == null)
                 return;
 
             // Check for an existing counter since this is also called when loading a save
-            if (AllowLiftCounter(elevator.OwnerID) && GetLiftCounter(lift) == null)
-                AddLiftCounter(lift, elevator.LiftPositionToFloor() + 1, elevator.OwnerID);
+            if (AllowLiftCounter(topElevator.OwnerID) && GetLiftCounter(lift) == null)
+                AddLiftCounter(lift, topElevator.LiftPositionToFloor() + 1, topElevator.OwnerID);
         }
 
         private void OnEntitySpawned(ElevatorIOEntity ioEntity)
         {
-            var elevator = ioEntity.GetParentEntity() as Elevator;
-            if (elevator == null)
+            var topElevator = ioEntity.GetParentEntity() as Elevator;
+            if (topElevator == null)
                 return;
 
-            if (IsPowerlessElevator(elevator))
+            if (IsPowerlessElevator(topElevator))
                 ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
 
-            MaybeToggleLiftCounter(elevator);
+            MaybeToggleLiftCounter(topElevator);
         }
 
         private object CanBuild(Planner planner, Construction construction, Construction.Target target)
@@ -152,16 +152,16 @@ namespace Oxide.Plugins
             if (entity == null)
                 return;
 
-            var elevator = entity as Elevator;
-            if (elevator == null)
+            var topElevator = entity as Elevator;
+            if (topElevator == null)
                 return;
 
-            var elevatorBelow = elevator.GetElevatorInDirection(Elevator.Direction.Down);
+            var elevatorBelow = topElevator.GetElevatorInDirection(Elevator.Direction.Down);
             if (elevatorBelow == null)
                 return;
 
             if (pluginConfig.ensureConsistentOwner && elevatorBelow.OwnerID != 0)
-                elevator.OwnerID = elevatorBelow.OwnerID;
+                topElevator.OwnerID = elevatorBelow.OwnerID;
 
             var lift = elevatorBelow.liftEntity;
             if (lift != null && pluginConfig.maintainLiftPositionWhenHeightChanges)
@@ -169,16 +169,16 @@ namespace Oxide.Plugins
                 int targetFloor;
                 bool didStopMovement = StopLiftMovement(lift, elevatorBelow, out targetFloor);
 
-                lift.SetParent(elevator, worldPositionStays: true, sendImmediate: true);
-                elevator.liftEntity = lift;
+                lift.SetParent(topElevator, worldPositionStays: true, sendImmediate: true);
+                topElevator.liftEntity = lift;
                 elevatorBelow.liftEntity = null;
 
                 if (didStopMovement)
                 {
                     NextTick(() =>
                     {
-                        if (elevator != null)
-                            RestartLiftMovement(elevator, targetFloor);
+                        if (topElevator != null)
+                            RestartLiftMovement(topElevator, targetFloor);
                     });
                 }
             }
@@ -225,59 +225,59 @@ namespace Oxide.Plugins
             liftTimerActions.Remove(lift.net.ID);
         }
 
-        private void RestartLiftMovement(Elevator elevator, int targetFloor)
+        private void RestartLiftMovement(Elevator topElevator, int targetFloor)
         {
-            var lift = elevator.liftEntity;
+            var lift = topElevator.liftEntity;
             if (lift != null)
             {
                 lift.ToggleHurtTrigger(false);
             }
 
-            elevator.ClearBusy();
-            elevator.CancelInvoke(elevator.ClearBusy);
+            topElevator.ClearBusy();
+            topElevator.CancelInvoke(topElevator.ClearBusy);
 
-            var ioEntity = elevator.ioEntity;
+            var ioEntity = topElevator.ioEntity;
             if (ioEntity != null)
             {
                 ioEntity.SetFlag(BaseEntity.Flags.Busy, false);
-                elevator.ioEntity.SendChangedToRoot(forceUpdate: true);
+                topElevator.ioEntity.SendChangedToRoot(forceUpdate: true);
             }
 
             float timeToTravel;
-            elevator.RequestMoveLiftTo(targetFloor, out timeToTravel);
+            topElevator.RequestMoveLiftTo(targetFloor, out timeToTravel);
         }
 
-        private object OnElevatorMove(Elevator elevator, int targetFloor)
+        private object OnElevatorMove(Elevator topElevator, int targetFloor)
         {
-            var lift = elevator.liftEntity;
+            var lift = topElevator.liftEntity;
             if (lift == null)
                 return null;
 
-            var liftFloor = elevator.LiftPositionToFloor();
+            var liftFloor = topElevator.LiftPositionToFloor();
             if (targetFloor == liftFloor)
                 return null;
 
-            Vector3 worldSpaceFloorPosition = elevator.GetWorldSpaceFloorPosition(targetFloor);
-            Vector3 vector = elevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
+            Vector3 worldSpaceFloorPosition = topElevator.GetWorldSpaceFloorPosition(targetFloor);
+            Vector3 vector = topElevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
 
             var distance = Mathf.Abs(lift.transform.localPosition.y - vector.y);
-            float timeToTravel = distance / elevator.LiftSpeedPerMetre;
+            float timeToTravel = distance / topElevator.LiftSpeedPerMetre;
 
             if (pluginConfig.enableSpeedOptions)
             {
                 // Duplicating vanilla logic since this is replacing default movement
-                if (elevator.IsBusy())
+                if (topElevator.IsBusy())
                     return false;
-                if (elevator.ioEntity != null && !elevator.ioEntity.IsPowered())
+                if (topElevator.ioEntity != null && !topElevator.ioEntity.IsPowered())
                     return false;
-                if (!elevator.IsValidFloor(targetFloor))
+                if (!topElevator.IsValidFloor(targetFloor))
                     return false;
                 if (!lift.CanMove())
                     return false;
 
                 // Custom speed logic
-                var speedConfig = GetPlayerSpeedConfig(elevator.OwnerID);
-                elevator.LiftSpeedPerMetre = speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
+                var speedConfig = GetPlayerSpeedConfig(topElevator.OwnerID);
+                topElevator.LiftSpeedPerMetre = speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
 
                 LeanTweenType leanTweenType;
                 switch (speedConfig.GetEaseType())
@@ -293,7 +293,7 @@ namespace Oxide.Plugins
                         break;
 
                     default:
-                        timeToTravel = distance / elevator.LiftSpeedPerMetre;
+                        timeToTravel = distance / topElevator.LiftSpeedPerMetre;
                         leanTweenType = LeanTweenType.linear;
                         break;
                 }
@@ -301,16 +301,16 @@ namespace Oxide.Plugins
                 LeanTween.moveLocalY(lift.gameObject, vector.y, timeToTravel).setEase(leanTweenType);
 
                 // Duplicating vanilla logic since this is replacing default movement
-                elevator.SetFlag(BaseEntity.Flags.Busy, true);
-                if (targetFloor < elevator.Floor)
+                topElevator.SetFlag(BaseEntity.Flags.Busy, true);
+                if (targetFloor < topElevator.Floor)
                 {
                     lift.ToggleHurtTrigger(true);
                 }
-                elevator.Invoke(elevator.ClearBusy, timeToTravel);
-                if (elevator.ioEntity != null)
+                topElevator.Invoke(topElevator.ClearBusy, timeToTravel);
+                if (topElevator.ioEntity != null)
                 {
-                    elevator.ioEntity.SetFlag(BaseEntity.Flags.Busy, true);
-                    elevator.ioEntity.SendChangedToRoot(forceUpdate: true);
+                    topElevator.ioEntity.SetFlag(BaseEntity.Flags.Busy, true);
+                    topElevator.ioEntity.SendChangedToRoot(forceUpdate: true);
                 }
             }
 
@@ -337,24 +337,24 @@ namespace Oxide.Plugins
             if (lift == null)
                 return null;
 
-            var elevator = lift.GetParentEntity() as Elevator;
-            if (elevator == null)
+            var topElevator = lift.GetParentEntity() as Elevator;
+            if (topElevator == null)
                 return null;
 
             // After this point, we return false to disable the default action since we know the counter is attached to an elevator
-            if (elevator.IsBusy())
+            if (topElevator.IsBusy())
                 return false;
 
-            if (elevator.ioEntity == null || !elevator.ioEntity.IsPowered())
+            if (topElevator.ioEntity == null || !topElevator.ioEntity.IsPowered())
                 return false;
 
             // The lift is parented to the top elevator so elevator.Floor is always the top floor
-            var targetFloor = Math.Min(Math.Max(0, amount - 1), elevator.Floor);
+            var targetFloor = Math.Min(Math.Max(0, amount - 1), topElevator.Floor);
             if (player.IsBuildingBlocked() || FloorSelectionWasBlocked(lift, player, targetFloor))
                 return false;
 
             float unusedTimeToTravel;
-            elevator.RequestMoveLiftTo(targetFloor, out unusedTimeToTravel);
+            topElevator.RequestMoveLiftTo(targetFloor, out unusedTimeToTravel);
 
             return false;
         }
@@ -535,11 +535,11 @@ namespace Oxide.Plugins
         private void UpdateFloorCounter(ElevatorLift lift, PowerCounter counter)
         {
             // Get the elevator on every update, since the lift can be re-parented
-            var elevator = lift.GetParentEntity() as Elevator;
-            if (elevator == null || counter == null)
+            var topElevator = lift.GetParentEntity() as Elevator;
+            if (topElevator == null || counter == null)
                 return;
 
-            var floor = elevator.LiftPositionToFloor() + 1;
+            var floor = topElevator.LiftPositionToFloor() + 1;
 
             if (counter.counterNumber == floor)
                 return;
@@ -567,13 +567,13 @@ namespace Oxide.Plugins
             return currentElevator;
         }
 
-        private void MaybeToggleLiftCounter(Elevator elevator)
+        private void MaybeToggleLiftCounter(Elevator topElevator)
         {
-            var lift = elevator.liftEntity;
+            var lift = topElevator.liftEntity;
             if (lift == null)
                 return;
 
-            var ioEntity = elevator.ioEntity as ElevatorIOEntity;
+            var ioEntity = topElevator.ioEntity as ElevatorIOEntity;
             if (ioEntity == null)
                 return;
 
@@ -582,7 +582,7 @@ namespace Oxide.Plugins
                 return;
 
             if (ioEntity.IsPowered())
-                InitializeCounter(liftCounter, elevator.LiftPositionToFloor() + 1);
+                InitializeCounter(liftCounter, topElevator.LiftPositionToFloor() + 1);
             else
                 ResetCounter(liftCounter);
         }
