@@ -104,7 +104,7 @@ namespace Oxide.Plugins
                 return;
 
             // Check for an existing counter since this is also called when loading a save
-            if (ShouldAllowLiftCounter(elevator.OwnerID) && lift.GetComponent<PowerCounter>() == null)
+            if (AllowLiftCounter(elevator.OwnerID) && GetLiftCounter(lift) == null)
                 AddLiftCounter(lift, elevator.LiftPositionToFloor() + 1, elevator.OwnerID);
         }
 
@@ -114,12 +114,10 @@ namespace Oxide.Plugins
             if (elevator == null)
                 return;
 
-            var ownerId = elevator.OwnerID;
-            if (ownerId == 0)
-                return;
+            if (IsPowerlessElevator(elevator))
+                ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
 
-            if (permission.UserHasPermission(ownerId.ToString(), PermissionPowerless))
-                ioEntity.SetFlag(BaseEntity.Flags.Reserved8, true);
+            MaybeToggleLiftCounter(elevator);
         }
 
         private object CanBuild(Planner planner, Construction construction, Construction.Target target)
@@ -175,10 +173,6 @@ namespace Oxide.Plugins
                 elevator.liftEntity = lift;
                 elevatorBelow.liftEntity = null;
 
-                var powerCounter = GetLiftCounter(lift);
-                if (powerCounter != null && !permission.UserHasPermission(elevatorBelow.OwnerID.ToString(), PermissionPowerless))
-                    powerCounter.SetFlag(BaseEntity.Flags.Reserved8, false);
-
                 if (didStopMovement)
                 {
                     NextTick(() =>
@@ -214,14 +208,10 @@ namespace Oxide.Plugins
 
             int targetFloor;
             bool didStopMovement = StopLiftMovement(lift, topElevator, out targetFloor);
-            
+
             lift.SetParent(elevatorBelow, worldPositionStays: true, sendImmediate: true);
             elevatorBelow.liftEntity = lift;
             topElevator.liftEntity = null;
-
-            var powerCounter = GetLiftCounter(lift);
-            if (powerCounter != null && !permission.UserHasPermission(elevatorBelow.OwnerID.ToString(), PermissionPowerless))
-                powerCounter.SetFlag(BaseEntity.Flags.Reserved8, false);
 
             if (didStopMovement)
             {
@@ -355,7 +345,7 @@ namespace Oxide.Plugins
             if (elevator.IsBusy())
                 return false;
 
-            if (elevator.ioEntity == null || !elevator.ioEntity.IsPowered() && !permission.UserHasPermission(elevator.OwnerID.ToString(), PermissionPowerless))
+            if (elevator.ioEntity == null || !elevator.ioEntity.IsPowered())
                 return false;
 
             // The lift is parented to the top elevator so elevator.Floor is always the top floor
@@ -369,20 +359,10 @@ namespace Oxide.Plugins
             return false;
         }
 
-        // Prevent lift counter from being toggled to "show passthrough" mode
         private object OnCounterModeToggle(PowerCounter counter, BasePlayer player, bool doShowPassthrough)
         {
-            var counterParent = counter.GetParentEntity();
-            if (doShowPassthrough && counterParent is ElevatorLift)
-                return false;
-
-            return null;
-        }
-
-        // Prevent lift counter from being powered down via the wire tool
-        private object OnInputUpdate(PowerCounter counter)
-        {
-            if (counter.GetParentEntity() is ElevatorLift)
+            // Prevent lift counter from being toggled to "show passthrough" mode
+            if (doShowPassthrough && IsLiftCounter(counter))
                 return false;
 
             return null;
@@ -393,33 +373,40 @@ namespace Oxide.Plugins
             if (ioEntity == null)
                 return null;
 
-            var elevator = ioEntity.GetParentEntity() as Elevator;
-            if (elevator == null || elevator.OwnerID == 0)
+            var topElevator = ioEntity.GetParentEntity() as Elevator;
+            if (topElevator == null)
                 return null;
 
-            var powerless = permission.UserHasPermission(elevator.OwnerID.ToString(), PermissionPowerless);
-            if (powerless)
-                ioEntity.SetFlag(BaseEntity.Flags.Reserved8, true);
+            var lift = topElevator.liftEntity;
 
-            var lift = elevator.liftEntity;
-            if (lift == null)
-                return null;
+            // Update the power state of the lift counter to match elevator power state
+            NextTick(() =>
+            {
+                // Ignore if the lift was destroyed, since it and the counter will be recreated elsewhere
+                if (lift == null)
+                    return;
 
-            // Have the counter follow the elevator's power state
-            var powerCounter = GetLiftCounter(lift);
-            if (powerCounter != null)
-                powerCounter.SetFlag(BaseEntity.Flags.Reserved8, powerless || inputAmount > 0 && inputAmount >= ioEntity.ConsumptionAmount());
+                // Get the elevator again since the lift could have changed parent
+                topElevator = lift.GetParentEntity() as Elevator;
+                if (topElevator == null)
+                    return;
 
-            // Prevent powerless elevators from being powered down via the wire tool
-            if (powerless)
+                MaybeToggleLiftCounter(topElevator);
+            });
+
+            // Prevent powerless elevators from being powered down
+            if (IsPowerlessElevator(topElevator))
+            {
+                ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
                 return false;
+            }
 
             return null;
         }
 
         private object OnEntityTakeDamage(PowerCounter counter)
         {
-            if (counter != null && counter.GetParentEntity() is ElevatorLift)
+            if (counter != null && IsLiftCounter(counter))
                 return false;
 
             return null;
@@ -462,8 +449,17 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private bool ShouldAllowLiftCounter(ulong ownerId) =>
+        private bool AllowLiftCounter(ulong ownerId) =>
             ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionLiftCounter);
+
+        private bool AllowPowerless(ulong ownerId) =>
+            ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionPowerless);
+
+        private bool IsPowerlessElevator(Elevator elevator) =>
+            AllowPowerless(elevator.OwnerID);
+
+        private bool IsLiftCounter(PowerCounter counter) =>
+            counter.GetParentEntity() is ElevatorLift;
 
         private void AddLiftCounter(ElevatorLift lift, int currentDisplayFloor, ulong ownerId)
         {
@@ -477,8 +473,8 @@ namespace Oxide.Plugins
             RemoveGroundWatch(counter);
             counter.Spawn();
 
-            if (permission.UserHasPermission(ownerId.ToString(), PermissionPowerless))
-                counter.SetFlag(BaseEntity.Flags.Reserved8, true);
+            if (AllowPowerless(ownerId))
+                counter.SetFlag(IOEntity.Flag_HasPower, true);
 
             counter.counterNumber = currentDisplayFloor;
             counter.targetCounterNumber = currentDisplayFloor;
@@ -557,15 +553,54 @@ namespace Oxide.Plugins
 
         private string GetMaxFloorsPermission(int maxFloors) => $"{PermissionMaxFloorsPrefix}.{maxFloors}";
 
-        private Elevator GetTopElevator(Elevator elevator)
+        private Elevator GetTopElevator(Elevator elevator) =>
+            GetFarthestElevatorInDirection(elevator, Elevator.Direction.Up);
+
+        private Elevator GetFarthestElevatorInDirection(Elevator elevator, Elevator.Direction direction)
         {
             var currentElevator = elevator;
 
             Elevator nextElevator;
-            while ((nextElevator = currentElevator.GetElevatorInDirection(Elevator.Direction.Up)) != null)
+            while ((nextElevator = currentElevator.GetElevatorInDirection(direction)) != null)
                 currentElevator = nextElevator;
 
             return currentElevator;
+        }
+
+        private void MaybeToggleLiftCounter(Elevator elevator)
+        {
+            var lift = elevator.liftEntity;
+            if (lift == null)
+                return;
+
+            var ioEntity = elevator.ioEntity as ElevatorIOEntity;
+            if (ioEntity == null)
+                return;
+
+            var liftCounter = GetLiftCounter(lift);
+            if (liftCounter == null)
+                return;
+
+            if (ioEntity.IsPowered())
+                InitializeCounter(liftCounter, elevator.LiftPositionToFloor() + 1);
+            else
+                ResetCounter(liftCounter);
+        }
+
+        private void InitializeCounter(PowerCounter counter, int floor)
+        {
+            counter.SetFlag(IOEntity.Flag_HasPower, true);
+            counter.counterNumber = floor;
+            counter.targetCounterNumber = floor;
+            counter.SendNetworkUpdate();
+        }
+
+        private void ResetCounter(PowerCounter counter)
+        {
+            counter.SetFlag(IOEntity.Flag_HasPower, false);
+            counter.counterNumber = 0;
+            counter.targetCounterNumber = 0;
+            counter.SendNetworkUpdate();
         }
 
         #endregion
