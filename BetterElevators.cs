@@ -328,7 +328,7 @@ namespace Oxide.Plugins
         {
             // This is where the magic happens... thanks to @JakeRich
             if (!info.forDisk)
-                info.msg.elevator.floor = 0;
+                info.msg.elevator.floor = 1;
         }
 
         private object OnCounterTargetChange(PowerCounter counter, BasePlayer player, int amount)
