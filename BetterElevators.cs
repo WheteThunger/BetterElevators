@@ -368,40 +368,40 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private object OnInputUpdate(ElevatorIOEntity ioEntity, int inputAmount)
+        private void OnInputUpdate(ElevatorIOEntity ioEntity, int inputAmount)
         {
             if (ioEntity == null)
-                return null;
+                return;
 
             var topElevator = ioEntity.GetParentEntity() as Elevator;
             if (topElevator == null)
-                return null;
+                return;
 
             var lift = topElevator.liftEntity;
+            var isPowerless = IsPowerlessElevator(topElevator);
 
-            // Update the power state of the lift counter to match elevator power state
             NextTick(() =>
             {
-                // Ignore if the lift was destroyed, since it and the counter will be recreated elsewhere
-                if (lift == null)
-                    return;
+                if (isPowerless)
+                {
+                    // Allow electricity to function normally when there is a wire plugged in
+                    // For example, so trap base designs can prevent players from using the buttons
+                    // When no wire is connected, force power to be on
+                    if (ioEntity.inputs[0].connectedTo.Get() == null)
+                        ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
+                }
 
-                // Get the elevator again since the lift could have changed parent
-                topElevator = lift.GetParentEntity() as Elevator;
-                if (topElevator == null)
-                    return;
+                if (lift != null)
+                {
+                    // Get the elevator again since the lift could have changed parent
+                    var nextTopElevator = lift.GetParentEntity() as Elevator;
+                    if (nextTopElevator == null)
+                        return;
 
-                MaybeToggleLiftCounter(topElevator);
+                    // Update the power state of the lift counter to match elevator power state
+                    MaybeToggleLiftCounter(nextTopElevator);
+                }
             });
-
-            // Prevent powerless elevators from being powered down
-            if (IsPowerlessElevator(topElevator))
-            {
-                ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
-                return false;
-            }
-
-            return null;
         }
 
         private object OnEntityTakeDamage(PowerCounter counter)
