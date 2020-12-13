@@ -1,10 +1,10 @@
 ## Features
 
-- Build elevators taller than 6 floors **without players running commands**. Supports a global default limit, as well as multiple permission-based limits.
-- Powerless elevators for players with permission.
-- Adjustable speed, including smooth acceleration. Supports a configuable default speed preset, as well as multiple configurable permission-based speed presets.
+- Build elevators taller than 6 floors without players running commands. Supports a global default limit, as well as multiple permission-based limits.
+- Powerless elevators, optionally based on permission.
+- Configurable elevator speed, including smooth acceleration. Supports a configurable default preset, as well as unlimited permission-based presets.
 - Optionally keep the lift in its current position as elevators are added or removed above it.
-- Optionally attach a counter to each elevator lift, if the owner has permission, which shows the current floor and allows players to select a destination floor.
+- Optionally attach a counter to each elevator lift, which shows the current floor and allows players to select a destination floor.
 
 ## Permissions
 
@@ -16,19 +16,19 @@
 
 ### Max floor permissions
 
-Each number in the `MaxFloorsRequiringPermission` configuration option automatically generates a permission of the format `betterelevators.maxfloors.<number>`. Granting one to a player allows them to build elevators with at most that many floors. Granting multiple of these permissions to a player will cause only the last one to apply (based on the order in the config).
-
-The following permissions come with this plugin's **default configuration**. You can add more max floor presets in the plugin configuration.
+The following permissions come with this plugin's **default configuration**. Granting one to a player allows them to build elevators with at most that many floors.
 - `betterelevators.maxfloors.10`
 - `betterelevators.maxfloors.15`
 - `betterelevators.maxfloors.20`
 - `betterelevators.maxfloors.100`
 
+You can add more max floor presets in the plugin configuration (`MaxFloorsRequiringPermission`), and the plugin will automatically generate permissions of the format `betterelevators.maxfloors.<number>` when reloaded. If a player has permission to multiple max floor presets, only the last one will apply (based on the order in the config).
+
 Note: The permission is checked when you try to deploy the elevator, meaning you can build on top of any elevator to your allowed height, even if the original owner did not have permission to build as high as you can.
 
 ### Speed permissions
 
-The following permissions come with this plugin's **default configuration**. Granting a speed preset to a player alters the speed of elevators they deploy.
+The following permissions come with this plugin's **default configuration**. Granting one to a player alters the speed of elevators they deploy.
 
 - `betterelevators.speed.2x`
 - `betterelevators.speed.4x`
@@ -38,7 +38,7 @@ The following permissions come with this plugin's **default configuration**. Gra
 - `betterelevators.speed.1x.cubic`
 - `betterelevators.speed.2x.cubic`
 
-You can add more speed presets in the plugin configuration and they will automatically generate permissions of the format `betterelevators.speed.<name>` when the plugin reloads. If a player has permission to multiple speed presets, only the last one will apply (based on the order in the config).
+You can add more speed presets in the plugin configuration (`SpeedsRequiringPermission`), and the plugin will automatically generate permissions of the format `betterelevators.speed.<name>` when reloaded. If a player has permission to multiple speed presets, only the last one will apply (based on the order in the config).
 
 The quadratic (x²) and cubic (x³) presets use smooth acceleration/deceleration to travel long distances more quickly. The `1x.quadratic` and `1x.cubic` presets are configured to take the same amount of time as vanilla elevators when moving only one floor at a time, but they will be much more time efficient when moving multiple floors at once (e.g., when using the "To Top" and "To Bottom" buttons, or when using the lift counter to move to a specific floor).
 
@@ -114,14 +114,14 @@ Default configuration:
   - Tip: You can combine this behavior with powerless elevators to continuously build upward by alternating between deploying an elevator above you and moving the lift upward.
 - `EnsureConsistentOwner` (`true` or `false`) -- While `true`, deploying an elevator on top of another will assign the new elevator's `OwnerID` to the same value as the one below it, instead of using the deploying player's steam id. This improves the predictability of permission-based features, especially speed, by effectively ensuring that the player who placed the bottom elevator determines the elevator's capabilities.
 - `EnableSpeedOptions` (`true` or `false`) -- Must be `true` for the `DefaultSpeed` and `SpeedsRequiringPermission` options to apply. You may set this to `false` to disable this plugin's speed features, if you desire to use other plugins to control elevator speed. Note: If you disable speed features after using them for a bit, some elevators may still have their speed altered.
-- `DefaultSpeed` -- This speed preset applies to all elevators except those belonging to players with additional permissions.
-  - `BaseSpeed` -- Base movement speed (vanilla is `1.5`). If acceleration is used, this is applied afterwards as a multiplier.
+- `DefaultSpeed` -- This speed preset applies to all elevators except those belonging to players that were granted access to presets in `SpeedsRequiringPermission`.
+  - `BaseSpeed` -- Base movement speed (vanilla is `1.5`). If acceleration is used, the total travel time is divided by this number instead.
   - `EaseType` (`"Linear"`, `"Quadratic"`, or `"Cubic"`)
     - Set to `"Linear"` (default) to cause the lift to move at a constant speed (`BaseSpeed`).
     - Set to `"Quadratic"` to cause the lift to accelerate/decelerate (x² speed).
     - Set to `"Cubic"` to cause the lift to accelerate/decelerate even faster (x³ speed).
-- `SpeedsRequiringPermission` -- List of speed configurations for use with permissions. A permission is automatically generated for each entry using the format `betterelevators.speed.<name>`. Granting one to a player causes elevators they deploy to move at the configured speed.
-  - Note: These presets have the same options as the `DefaultSpeed` configuration option.
+- `SpeedsRequiringPermission` -- List of speed presets for use with permissions. A permission is automatically generated for each entry using the format `betterelevators.speed.<name>`. Granting one to a player causes elevators they deploy to move at the configured speed.
+  - Note: These presets have the same options as `DefaultSpeed`.
 
 ### Legacy speed options
 
