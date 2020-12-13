@@ -57,33 +57,30 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized(bool initialBoot)
         {
+            if (initialBoot)
+                return;
+
             foreach (var entity in BaseNetworkable.serverEntities)
             {
-                if (initialBoot)
+                var elevator = entity as Elevator;
+                if (elevator != null)
                 {
-                    var powerCounter = entity as PowerCounter;
-                    if (powerCounter != null && powerCounter.GetParentEntity() is ElevatorLift)
-                    {
-                        RemoveGroundWatch(powerCounter);
-                        powerCounter.pickup.enabled = false;
-                        continue;
-                    }
+                    OnEntitySpawned(elevator);
+                    continue;
                 }
-                else
-                {
-                    var elevator = entity as Elevator;
-                    if (elevator != null)
-                    {
-                        OnEntitySpawned(elevator);
-                        continue;
-                    }
 
-                    var elevatorIoEntity = entity as ElevatorIOEntity;
-                    if (elevatorIoEntity != null)
-                    {
-                        OnEntitySpawned(elevatorIoEntity);
-                        continue;
-                    }
+                var elevatorIoEntity = entity as ElevatorIOEntity;
+                if (elevatorIoEntity != null)
+                {
+                    OnEntitySpawned(elevatorIoEntity);
+                    continue;
+                }
+
+                var lift = entity as ElevatorLift;
+                if (lift != null)
+                {
+                    OnEntitySpawned(lift);
+                    continue;
                 }
             }
         }
@@ -103,9 +100,20 @@ namespace Oxide.Plugins
             if (topElevator == null)
                 return;
 
+            // Add a counter to the lift when it spawns
             // Check for an existing counter since this is also called when loading a save
             if (AllowLiftCounter(topElevator.OwnerID) && GetLiftCounter(lift) == null)
                 AddLiftCounter(lift, topElevator.LiftPositionToFloor() + 1, topElevator.OwnerID);
+        }
+
+        private void OnEntitySpawned(PowerCounter counter)
+        {
+            if (IsLiftCounter(counter))
+            {
+                counter.pickup.enabled = false;
+                RemoveGroundWatch(counter);
+                HideInputsAndOutputs(counter);
+            }
         }
 
         private void OnEntitySpawned(ElevatorIOEntity ioEntity)
@@ -467,14 +475,9 @@ namespace Oxide.Plugins
             if (counter == null)
                 return;
 
-            counter.pickup.enabled = false;
             counter.OwnerID = ownerId;
             counter.SetParent(lift);
-            RemoveGroundWatch(counter);
             counter.Spawn();
-
-            if (AllowPowerless(ownerId))
-                counter.SetFlag(IOEntity.Flag_HasPower, true);
 
             counter.counterNumber = currentDisplayFloor;
             counter.targetCounterNumber = currentDisplayFloor;
@@ -587,7 +590,7 @@ namespace Oxide.Plugins
                 ResetCounter(liftCounter);
         }
 
-        private void InitializeCounter(PowerCounter counter, int floor)
+        private void HideInputsAndOutputs(PowerCounter counter)
         {
             // Trick to hide the inputs and outputs on the client
             for (var i = 0; i < counter.inputs.Length; i++)
@@ -595,7 +598,10 @@ namespace Oxide.Plugins
 
             for (var i = 0; i < counter.outputs.Length; i++)
                 counter.outputs[i].type = IOEntity.IOType.Generic;
+        }
 
+        private void InitializeCounter(PowerCounter counter, int floor)
+        {
             counter.SetFlag(IOEntity.Flag_HasPower, true);
             counter.SetFlag(BaseEntity.Flags.Busy, false);
             counter.counterNumber = floor;
