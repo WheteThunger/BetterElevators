@@ -9,10 +9,10 @@
 ## Permissions
 
 - `betterelevators.powerless` -- Elevators deployed by players with this permission do not require power.
+  - Permission not required if you have set `"RequirePermissionForPowerless": false` in the plugin configuration.
 - `betterelevators.liftcounter` -- Elevators deployed by players with this permission automatically have a counter attached to the lift which shows the current floor and can be used to select a destination floor.
-  - Cannot be used while building blocked, due to client-side limitations.
-  - Cannot be used while the lift does not have power, unless the elevator is powerless.
-  - Cannot be used to select a floor higher than 100, due to game limitations.
+  - Permission not required if you have set `"RequirePermissionForLiftCounter": false` in the plugin configuration.
+  - The counter cannot be used while building blocked, or used to select a floor higher than 100, due to client-side limitations.
 
 ### Max floor permissions
 
@@ -57,6 +57,8 @@ Default configuration:
     20,
     100
   ],
+  "RequirePermissionForPowerless": true,
+  "RequirePermissionForLiftCounter": true,
   "MaintainLiftPositionWhenHeightChanges": false,
   "EnsureConsistentOwner": true,
   "EnableSpeedOptions": true,
@@ -106,6 +108,8 @@ Default configuration:
 
 - `DefaultMaxFloors` -- The max number of floors allowed per elevator, unless the player building it has been granted permissions for a different number of max floors.
 - `MaxFloorsRequiringPermission` -- List of numbers used to automatically generate permissions of the format `betterelevators.maxfloors.<number>`. Granting one to a player allows them to build elevators with at most that many floors.
+- `RequirePermissionForPowerless` (`true` or `false`) -- While `true`, players must have the `betterelevators.powerless` permission for their elevators to not require power.
+- `RequirePermissionForLiftCounter` (`true` or `false`) -- While `true`, players must have the `betterelevators.liftcounter` permission for their elevators to spawn with a lift counter.
 - `MaintainLiftPositionWhenHeightChanges` (`true` or `false`) -- While `true`, causes the lift to keeps its position and movement destination when an elevator is added or removed above it. This avoids the annoying vanilla behavior where the lift is destroyed and rebuilt at the top every time the height changes.
   - Tip: You can combine this behavior with powerless elevators to continuously build upward by alternating between deploying an elevator above you and moving the lift upward.
 - `EnsureConsistentOwner` (`true` or `false`) -- While `true`, deploying an elevator on top of another will assign the new elevator's `OwnerID` to the same value as the one below it, instead of using the deploying player's steam id. This improves the predictability of permission-based features, especially speed, by effectively ensuring that the player who placed the bottom elevator determines the elevator's capabilities.

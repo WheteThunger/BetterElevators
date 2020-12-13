@@ -458,9 +458,11 @@ namespace Oxide.Plugins
         }
 
         private bool AllowLiftCounter(ulong ownerId) =>
+            !pluginConfig.RequirePermissionForLiftCounter ||
             ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionLiftCounter);
 
         private bool AllowPowerless(ulong ownerId) =>
+            !pluginConfig.RequirePermissionForPowerless ||
             ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionPowerless);
 
         private bool IsPowerlessElevator(Elevator elevator) =>
@@ -664,6 +666,12 @@ namespace Oxide.Plugins
 
             [JsonProperty("MaxFloorsRequiringPermission")]
             public int[] maxFloorsRequiringPermission = new int[] { 10, 15, 20, 100 };
+
+            [JsonProperty("RequirePermissionForPowerless")]
+            public bool RequirePermissionForPowerless = true;
+
+            [JsonProperty("RequirePermissionForLiftCounter")]
+            public bool RequirePermissionForLiftCounter = true;
 
             [JsonProperty("MaintainLiftPositionWhenHeightChanges")]
             public bool maintainLiftPositionWhenHeightChanges = false;
