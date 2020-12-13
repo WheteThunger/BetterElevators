@@ -285,7 +285,6 @@ namespace Oxide.Plugins
 
                 // Custom speed logic
                 var speedConfig = GetPlayerSpeedConfig(topElevator.OwnerID);
-                topElevator.LiftSpeedPerMetre = speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
 
                 LeanTweenType leanTweenType;
                 switch (speedConfig.GetEaseType())
@@ -301,7 +300,7 @@ namespace Oxide.Plugins
                         break;
 
                     default:
-                        timeToTravel = distance / topElevator.LiftSpeedPerMetre;
+                        timeToTravel = distance / speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
                         leanTweenType = LeanTweenType.linear;
                         break;
                 }
