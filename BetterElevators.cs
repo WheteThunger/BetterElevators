@@ -701,8 +701,26 @@ namespace Oxide.Plugins
                 },
                 new SpeedConfig
                 {
+                    name = "1.5x.quadratic",
+                    baseSpeed = 1.29f,
+                    easeType = EaseType.Quadratic.ToString()
+                },
+                new SpeedConfig
+                {
+                    name = "2x.quadratic",
+                    baseSpeed = 1.72f,
+                    easeType = EaseType.Quadratic.ToString()
+                },
+                new SpeedConfig
+                {
                     name = "1x.cubic",
                     baseSpeed = 0.72f,
+                    easeType = EaseType.Cubic.ToString()
+                },
+                new SpeedConfig
+                {
+                    name = "2x.cubic",
+                    baseSpeed = 1.44f,
                     easeType = EaseType.Cubic.ToString()
                 },
             };

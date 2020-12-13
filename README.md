@@ -28,15 +28,19 @@ Note: The permission is checked when you try to deploy the elevator, meaning you
 
 ### Speed permissions
 
-Each preset in the `SpeedsRequiringPermission` configuration option automatically generates a permission of format `betterelevators.speed.<name>`. Granting one to a player causes elevators they deploy to move at the configured speed. Granting multiple of these permissions to a player will cause only the last one to apply (based on the order in the config).
+The following permissions come with this plugin's **default configuration**. Granting a speed preset to a player alters the speed of elevators they deploy.
 
-The following permissions come with this plugin's **default configuration**. You can add more speed presets in the plugin configuration.
 - `betterelevators.speed.2x`
 - `betterelevators.speed.4x`
 - `betterelevators.speed.1x.quadratic`
+- `betterelevators.speed.1.5x.quadratic`
+- `betterelevators.speed.2x.quadratic`
 - `betterelevators.speed.1x.cubic`
+- `betterelevators.speed.2x.cubic`
 
-The quadratic (x²) and cubic (x³) presets use smooth acceleration/deceleration to travel long distances more quickly. The `1x.quadratic` and `1x.cubic` presets are configured to take the same amount of time as vanilla elevators when moving only one floor at a time, but they will be much more time efficient when moving multiple floors at once (e.g., when using the "To Top" and "To Bottom" buttons, or when using the lift counter).
+You can add more speed presets in the plugin configuration and they will automatically generate permissions of the format `betterelevators.speed.<name>` when the plugin reloads. If a player has permission to multiple speed presets, only the last one will apply (based on the order in the config).
+
+The quadratic (x²) and cubic (x³) presets use smooth acceleration/deceleration to travel long distances more quickly. The `1x.quadratic` and `1x.cubic` presets are configured to take the same amount of time as vanilla elevators when moving only one floor at a time, but they will be much more time efficient when moving multiple floors at once (e.g., when using the "To Top" and "To Bottom" buttons, or when using the lift counter to move to a specific floor).
 
 Note: Speed permissions are based on the owner of the top elevator. It's recommended to use the `EnsureConsistentOwner` configuration option (on by default) so that each elevator always copies the owner from the one below it for more predictable behavior.
 
@@ -77,8 +81,23 @@ Default configuration:
       "EaseType": "Quadratic"
     },
     {
+      "Name": "1.5x.quadratic",
+      "BaseSpeed": 1.29,
+      "EaseType": "Quadratic"
+    },
+    {
+      "Name": "2x.quadratic",
+      "BaseSpeed": 1.72,
+      "EaseType": "Quadratic"
+    },
+    {
       "Name": "1x.cubic",
       "BaseSpeed": 0.72,
+      "EaseType": "Cubic"
+    },
+    {
+      "Name": "2x.cubic",
+      "BaseSpeed": 1.44,
       "EaseType": "Cubic"
     }
   ]
@@ -102,9 +121,9 @@ Default configuration:
 
 ### Legacy speed options
 
-Each speed preset still allows the following options for backwards compatibility. These may be removed in a future version. It is **not recommended** to use these options with `EaseType` set to `"Quadratic"` or `"Cubic"` because that will not work like you probably expect.
+Each speed preset still allows the following options for backwards compatibility. These may be removed in a future version. **These options only work for `EaseType: "Linear"`**, and that is unlikely to change in a future version.
 
-- `SpeedIncreasePerFloor` -- This causes the elevator to have dynamically calculated constant speed based on the number of floors it plans to move. This does not cause acceleration.
+- `SpeedIncreasePerFloor` -- This causes the elevator speed to be dynamically calculated as it starts to move, based on the distance from the destination floor. This does not cause acceleration.
   - Travelling 1 floor will use `BaseSpeed`.
   - Travelling 2 floors at once will use `BaseSpeed + SpeedIncreasePerFloor`.
   - Travelling 3 floors will use `BaseSpeed + (2 * SpeedIncreasePerFloor)`.
