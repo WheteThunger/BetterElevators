@@ -235,22 +235,6 @@ namespace Oxide.Plugins
 
         private void RestartLiftMovement(Elevator topElevator, int targetFloor)
         {
-            var lift = topElevator.liftEntity;
-            if (lift != null)
-            {
-                lift.ToggleHurtTrigger(false);
-            }
-
-            topElevator.ClearBusy();
-            topElevator.CancelInvoke(topElevator.ClearBusy);
-
-            var ioEntity = topElevator.ioEntity;
-            if (ioEntity != null)
-            {
-                ioEntity.SetFlag(BaseEntity.Flags.Busy, false);
-                topElevator.ioEntity.SendChangedToRoot(forceUpdate: true);
-            }
-
             float timeToTravel;
             topElevator.RequestMoveLiftTo(targetFloor, out timeToTravel);
         }
