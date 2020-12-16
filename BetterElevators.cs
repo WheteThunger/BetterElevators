@@ -57,30 +57,39 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized(bool initialBoot)
         {
-            if (initialBoot)
-                return;
-
             foreach (var entity in BaseNetworkable.serverEntities)
             {
-                var elevator = entity as Elevator;
-                if (elevator != null)
+                if (initialBoot)
                 {
-                    OnEntitySpawned(elevator);
-                    continue;
+                    var counter = entity as PowerCounter;
+                    if (counter != null)
+                    {
+                        OnEntitySpawned(counter);
+                        continue;
+                    }
                 }
-
-                var elevatorIoEntity = entity as ElevatorIOEntity;
-                if (elevatorIoEntity != null)
+                else
                 {
-                    OnEntitySpawned(elevatorIoEntity);
-                    continue;
-                }
+                    var elevator = entity as Elevator;
+                    if (elevator != null)
+                    {
+                        OnEntitySpawned(elevator);
+                        continue;
+                    }
 
-                var lift = entity as ElevatorLift;
-                if (lift != null)
-                {
-                    OnEntitySpawned(lift);
-                    continue;
+                    var elevatorIoEntity = entity as ElevatorIOEntity;
+                    if (elevatorIoEntity != null)
+                    {
+                        OnEntitySpawned(elevatorIoEntity);
+                        continue;
+                    }
+
+                    var lift = entity as ElevatorLift;
+                    if (lift != null)
+                    {
+                        OnEntitySpawned(lift);
+                        continue;
+                    }
                 }
             }
         }
