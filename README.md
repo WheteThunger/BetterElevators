@@ -40,7 +40,7 @@ The following permissions come with this plugin's **default configuration**. Gra
 
 You can add more speed presets in the plugin configuration (`SpeedsRequiringPermission`), and the plugin will automatically generate permissions of the format `betterelevators.speed.<name>` when reloaded. If a player has permission to multiple speed presets, only the last one will apply (based on the order in the config).
 
-The quadratic (x²) and cubic (x³) presets will accelerate and decelerate to travel long distances more quickly. The `1x.quadratic` and `1x.cubic` presets are configured to take the same amount of time as vanilla elevators when moving only one floor at a time, but they will be much more time efficient when moving multiple floors at once (e.g., when using the "To Top" and "To Bottom" buttons, or when using the lift counter to move to a specific floor).
+The quadratic (xÂ²) and cubic (xÂ³) presets will accelerate and decelerate to travel long distances more quickly. The `1x.quadratic` and `1x.cubic` presets are configured to take the same amount of time as vanilla elevators when moving only one floor at a time, but they will be much more time efficient when moving multiple floors at once (e.g., when using the "To Top" and "To Bottom" buttons, or when using the lift counter to move to a specific floor).
 
 Note: Speed permissions are based on the owner of the top elevator. It's recommended to use the `EnsureConsistentOwner` configuration option (on by default) so that each elevator always copies the owner from the one below it for more predictable behavior.
 
@@ -102,28 +102,54 @@ Default configuration:
       "BaseSpeed": 1.44,
       "EaseType": "Cubic"
     }
-  ]
+  ],
+  "StaticElevators": {
+    "EnableCustomSpeed": false,
+    "Speed": {
+      "BaseSpeed": 3.5,
+      "EaseType": "Linear"
+    },
+    "EnableLiftCounter": false
+  }
 }
 ```
 
 - `DefaultMaxFloors` -- The max number of floors allowed per elevator, unless the player building it has been granted permissions for a different number of max floors.
 - `MaxFloorsRequiringPermission` -- List of numbers used to automatically generate permissions of the format `betterelevators.maxfloors.<number>`. Granting one to a player allows them to build elevators with at most that many floors.
 - `RequirePermissionForPowerless` (`true` or `false`) -- While `true`, players must have the `betterelevators.powerless` permission for their elevators to not require power. While `false`, no elevators require power.
-- `RequirePermissionForLiftCounter` (`true` or `false`) -- While `true`, players must have the `betterelevators.liftcounter` permission for their elevators to spawn with a lift counter. While `false`, all elevator lifts spawn with a counter.
+- `RequirePermissionForLiftCounter` (`true` or `false`) -- While `true`, players must have the `betterelevators.liftcounter` permission for their elevators to spawn with a lift counter. While `false`, all player elevator lifts spawn with a counter.
+  - Note: Static elevators have a separate option for enabling the lift counter.
 - `MaintainLiftPositionWhenHeightChanges` (`true` or `false`) -- While `true`, causes the lift to keeps its position and movement destination when an elevator is added or removed above it. This avoids the annoying vanilla behavior where the lift is destroyed and rebuilt at the top every time the height changes.
   - Tip: You can combine this behavior with powerless elevators to continuously build upward by alternating between deploying an elevator above you and moving the lift upward.
 - `EnsureConsistentOwner` (`true` or `false`) -- While `true`, deploying an elevator on top of another will assign the new elevator's `OwnerID` to the same value as the elevator below it, instead of using the deploying player's steam id. This improves the predictability of permission-based features, especially speed, by effectively ensuring that the player who placed the bottom elevator determines the elevator's capabilities.
-- `EnableSpeedOptions` (`true` or `false`) -- Must be `true` for the `DefaultSpeed` and `SpeedsRequiringPermission` options to apply. You may set this to `false` to disable this plugin's speed features, if you desire to use other plugins to control elevator speed.
-- `DefaultSpeed` -- This speed preset applies to all elevators except those belonging to players that were granted access to presets in `SpeedsRequiringPermission`.
-  - `BaseSpeed` -- Base movement speed (vanilla is `1.5`). If acceleration is used, the total travel time is divided by this number instead.
-  - `EaseType` (`"Linear"`, `"Quadratic"`, or `"Cubic"`)
-    - Set to `"Linear"` (vanilla) to cause the lift to move at a constant speed (the value of `BaseSpeed`).
-    - Set to `"Quadratic"` (recommended) to cause the lift to accelerate/decelerate (x² speed).
-    - Set to `"Cubic"` to cause the lift to accelerate/decelerate even faster (x³ speed).
+- `EnableSpeedOptions` (`true` or `false`) -- Determines whether this plugin controls the speed of player elevators.
+  - Set to `true` to use the `DefaultSpeed` and `SpeedsRequiringPermission` options below.
+  - Set to `false` to prevent this plugin from controlling the speed of player elevators. This is useful if you want another plugin to control elevator speed.
+  - Note: Static elevators have a separate configuration option for controlling speed below.
+- `DefaultSpeed` -- This speed preset applies to all player elevators except those belonging to players that were granted access to presets in `SpeedsRequiringPermission`.
+  - `BaseSpeed` -- See the Speed presets section for details.
+  - `EaseType` -- See the Speed presets section for details.
 - `SpeedsRequiringPermission` -- List of speed presets for use with permissions. A permission is automatically generated for each entry using the format `betterelevators.speed.<name>`. Granting one to a player causes elevators they deploy to move at the configured speed.
-  - Note: These presets have the same options as `DefaultSpeed`.
+  - See the Speed presets section for the available options of each speed preset.
+- `StaticElevators` -- Settings for static elevators (the ones for accessing undergorund train tunnels).
+  - `EnableCustomSpeed` (`true` or `false`) -- Determines whether this plugin controls the speed of static elevators.
+    - Set to `true` to use the `Speed` option below.
+    - Set to `false` to use vanilla speed.
+  - `Speed` -- Speed preset that will apply to all static elevators if `EnableCustomSpeed` is `true`.
+    - `BaseSpeed` -- See the Speed presets section for details.
+    - `EaseType` -- See the Speed presets section for details.
+  - `EnableLiftCounter` (`true` or `false`) -- Whether static elevators should have attached lift counters.
 
-### Legacy speed options
+### Speed presets
+
+Each speed preset supports the following options.
+- `BaseSpeed` -- Base movement speed (vanilla speed is `1.5` for player elevators, `3.5` for static elevators). If `EaseType` is set to `"Quadratic"` or `"Cubic"`, the total travel time is divided by this number instead.
+- `EaseType` (`"Linear"`, `"Quadratic"`, or `"Cubic"`)
+  - Set to `"Linear"` (vanilla/default) to cause the lift to move at a constant speed (the value of `BaseSpeed`).
+  - Set to `"Quadratic"` (recommended) to cause the lift to accelerate/decelerate (xÂ² speed).
+  - Set to `"Cubic"` to cause the lift to accelerate/decelerate even faster (xÂ³ speed).
+
+#### Legacy speed options
 
 Each speed preset still allows the following options for backwards compatibility. These may be removed in a future version. **These options only work for `EaseType: "Linear"`**, and that is unlikely to change in a future version.
 

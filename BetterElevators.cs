@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.1.0")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.0")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -33,6 +33,9 @@ namespace Oxide.Plugins
 
         private readonly Vector3 LiftCounterPosition = new Vector3(-1.18f, -0.16f, -0.1f);
         private readonly Quaternion LiftCounterRotation = Quaternion.Euler(0, 90, 0);
+
+        private readonly Vector3 StaticLiftCounterPositon = new Vector3(1.183f, -0.09f, -0.92f);
+        private readonly Quaternion StaticLiftCounterRotation = Quaternion.Euler(0, -90, 0);
 
         private readonly Dictionary<uint, Action> liftTimerActions = new Dictionary<uint, Action>();
 
@@ -111,8 +114,8 @@ namespace Oxide.Plugins
 
             // Add a counter to the lift when it spawns
             // Check for an existing counter since this is also called when loading a save
-            if (AllowLiftCounter(topElevator.OwnerID) && GetLiftCounter(lift) == null)
-                AddLiftCounter(lift, topElevator.LiftPositionToFloor() + 1, topElevator.OwnerID);
+            if (AllowLiftCounter(topElevator) && GetLiftCounter(lift) == null)
+                AddLiftCounter(lift, topElevator.LiftPositionToFloor() + 1, topElevator.OwnerID, startPowered: ElevatorHasPower(topElevator));
         }
 
         private void OnEntitySpawned(PowerCounter counter)
@@ -258,70 +261,65 @@ namespace Oxide.Plugins
             if (targetFloor == liftFloor)
                 return null;
 
-            Vector3 worldSpaceFloorPosition = topElevator.GetWorldSpaceFloorPosition(targetFloor);
-            Vector3 vector = topElevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
+            if (!CanElevatorMoveToFloor(topElevator, targetFloor))
+                return null;
 
-            var distance = Mathf.Abs(lift.transform.localPosition.y - vector.y);
+            Vector3 worldSpaceFloorPosition = topElevator.GetWorldSpaceFloorPosition(targetFloor);
+            Vector3 localSpaceFloorPosition = topElevator.transform.InverseTransformPoint(worldSpaceFloorPosition);
+
+            var distance = Mathf.Abs(lift.transform.localPosition.y - localSpaceFloorPosition.y);
             float timeToTravel = distance / topElevator.LiftSpeedPerMetre;
 
-            if (pluginConfig.enableSpeedOptions)
+            SpeedConfig speedConfig;
+            if (!TryGetSpeedConfig(topElevator, out speedConfig))
             {
-                // Duplicating vanilla logic since this is replacing default movement
-                if (topElevator.IsBusy())
-                    return false;
-                if (topElevator.ioEntity != null && !topElevator.ioEntity.IsPowered())
-                    return false;
-                if (!topElevator.IsValidFloor(targetFloor))
-                    return false;
-                if (!lift.CanMove())
-                    return false;
+                if (GetLiftCounter(lift) != null && timeToTravel > 0)
+                    StartUpdatingLiftCounter(lift, timeToTravel);
 
-                // Custom speed logic
-                var speedConfig = GetPlayerSpeedConfig(topElevator.OwnerID);
+                return null;
+            }
 
-                LeanTweenType leanTweenType;
-                switch (speedConfig.GetEaseType())
-                {
-                    case EaseType.Quadratic:
-                        timeToTravel = Convert.ToSingle(Math.Sqrt(distance)) / speedConfig.baseSpeed;
-                        leanTweenType = LeanTweenType.easeInOutQuad;
-                        break;
+            // Custom movement starts here.
+            topElevator.OnMoveBegin();
 
-                    case EaseType.Cubic:
-                        timeToTravel = Convert.ToSingle(Math.Pow(distance, 1.0 / 3.0)) / speedConfig.baseSpeed;
-                        leanTweenType = LeanTweenType.easeInOutCubic;
-                        break;
+            LeanTweenType leanTweenType;
+            switch (speedConfig.GetEaseType())
+            {
+                case EaseType.Quadratic:
+                    timeToTravel = Convert.ToSingle(Math.Sqrt(distance)) / speedConfig.baseSpeed;
+                    leanTweenType = LeanTweenType.easeInOutQuad;
+                    break;
 
-                    default:
-                        timeToTravel = distance / speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
-                        leanTweenType = LeanTweenType.linear;
-                        break;
-                }
+                case EaseType.Cubic:
+                    timeToTravel = Convert.ToSingle(Math.Pow(distance, 1.0 / 3.0)) / speedConfig.baseSpeed;
+                    leanTweenType = LeanTweenType.easeInOutCubic;
+                    break;
 
-                LeanTween.moveLocalY(lift.gameObject, vector.y, timeToTravel).setEase(leanTweenType);
+                default:
+                    timeToTravel = distance / speedConfig.GetSpeedForLevels(Math.Abs(targetFloor - liftFloor));
+                    leanTweenType = LeanTweenType.linear;
+                    break;
+            }
 
-                // Duplicating vanilla logic since this is replacing default movement
-                topElevator.SetFlag(BaseEntity.Flags.Busy, true);
-                if (targetFloor < topElevator.Floor)
-                {
-                    lift.ToggleHurtTrigger(true);
-                }
-                topElevator.Invoke(topElevator.ClearBusy, timeToTravel);
-                if (topElevator.ioEntity != null)
-                {
-                    topElevator.ioEntity.SetFlag(BaseEntity.Flags.Busy, true);
-                    topElevator.ioEntity.SendChangedToRoot(forceUpdate: true);
-                }
+            LeanTween.moveLocalY(lift.gameObject, localSpaceFloorPosition.y, timeToTravel).setEase(leanTweenType);
+
+            // Duplicating vanilla logic since this is replacing default movement
+            topElevator.SetFlag(BaseEntity.Flags.Busy, true);
+            if (targetFloor < topElevator.Floor)
+            {
+                lift.ToggleHurtTrigger(true);
+            }
+            topElevator.Invoke(topElevator.ClearBusy, timeToTravel);
+            if (topElevator.ioEntity != null)
+            {
+                topElevator.ioEntity.SetFlag(BaseEntity.Flags.Busy, true);
+                topElevator.ioEntity.SendChangedToRoot(forceUpdate: true);
             }
 
             if (GetLiftCounter(lift) != null && timeToTravel > 0)
                 StartUpdatingLiftCounter(lift, timeToTravel);
 
-            // Disable vanilla movement since we are using custom movement
-            if (pluginConfig.enableSpeedOptions)
-                return false;
-
-            return null;
+            return false;
         }
 
         private void OnEntitySaved(Elevator elevator, BaseNetworkable.SaveInfo info)
@@ -345,7 +343,7 @@ namespace Oxide.Plugins
             if (topElevator.IsBusy())
                 return false;
 
-            if (topElevator.ioEntity == null || !topElevator.ioEntity.IsPowered())
+            if (!ElevatorHasPower(topElevator))
                 return false;
 
             // The lift is parented to the top elevator so elevator.Floor is always the top floor
@@ -432,6 +430,26 @@ namespace Oxide.Plugins
             }
         }
 
+        private bool CanElevatorMoveToFloor(Elevator topElevator, int targetFloor)
+        {
+            // Duplicating vanilla logic.
+            if (topElevator.IsBusy())
+                return false;
+            if (!topElevator.IsStatic && topElevator.ioEntity != null && !topElevator.ioEntity.IsPowered())
+                return false;
+            if (!topElevator.IsValidFloor(targetFloor))
+                return false;
+            if (!topElevator.liftEntity.CanMove())
+                return false;
+            if (topElevator.LiftPositionToFloor() == targetFloor)
+            {
+                topElevator.OnLiftCalledWhenAtTargetFloor();
+                return false;
+            }
+
+            return true;
+        }
+
         private bool StopLiftMovement(ElevatorLift lift, Elevator topElevator, out int targetFloor)
         {
             var tweens = LeanTween.descriptions(lift.gameObject);
@@ -449,23 +467,47 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private bool AllowLiftCounter(ulong ownerId) =>
-            !pluginConfig.RequirePermissionForLiftCounter ||
-            ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionLiftCounter);
+        private bool AllowLiftCounter(Elevator topElevator)
+        {
+            if (topElevator.IsStatic)
+                return pluginConfig.staticElevators.enableLiftCounter;
 
-        private bool AllowPowerless(ulong ownerId) =>
-            !pluginConfig.RequirePermissionForPowerless ||
-            ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionPowerless);
+            var ownerId = topElevator.OwnerID;
+            return !pluginConfig.RequirePermissionForLiftCounter
+                || ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionLiftCounter);
+        }
+
+        private bool AllowPowerless(Elevator topElevator)
+        {
+            if (topElevator.IsStatic)
+                return false;
+
+            var ownerId = topElevator.OwnerID;
+            return !pluginConfig.RequirePermissionForPowerless
+                || ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionPowerless);
+        }
 
         private bool IsPowerlessElevator(Elevator elevator) =>
-            AllowPowerless(elevator.OwnerID);
+            AllowPowerless(elevator);
 
         private bool IsLiftCounter(PowerCounter counter) =>
             counter.GetParentEntity() is ElevatorLift;
 
-        private void AddLiftCounter(ElevatorLift lift, int currentDisplayFloor, ulong ownerId)
+        private bool ElevatorHasPower(Elevator topElevator) =>
+            topElevator.IsStatic || topElevator.ioEntity != null && topElevator.ioEntity.IsPowered();
+
+        private void AddLiftCounter(ElevatorLift lift, int currentDisplayFloor, ulong ownerId, bool startPowered = false)
         {
-            var counter = GameManager.server.CreateEntity(PrefabPowerCounter, LiftCounterPosition, LiftCounterRotation) as PowerCounter;
+            var position = LiftCounterPosition;
+            var rotation = LiftCounterRotation;
+
+            if (lift is ElevatorLiftStatic)
+            {
+                position = StaticLiftCounterPositon;
+                rotation = StaticLiftCounterRotation;
+            }
+
+            var counter = GameManager.server.CreateEntity(PrefabPowerCounter, position, rotation) as PowerCounter;
             if (counter == null)
                 return;
 
@@ -473,8 +515,8 @@ namespace Oxide.Plugins
             counter.SetParent(lift);
             counter.Spawn();
 
-            counter.counterNumber = currentDisplayFloor;
-            counter.targetCounterNumber = currentDisplayFloor;
+            if (startPowered)
+                InitializeCounter(counter, currentDisplayFloor);
         }
 
         private void RemoveGroundWatch(BaseEntity entity)
@@ -570,15 +612,11 @@ namespace Oxide.Plugins
             if (lift == null)
                 return;
 
-            var ioEntity = topElevator.ioEntity as ElevatorIOEntity;
-            if (ioEntity == null)
-                return;
-
             var liftCounter = GetLiftCounter(lift);
             if (liftCounter == null)
                 return;
 
-            if (ioEntity.IsPowered())
+            if (ElevatorHasPower(topElevator))
                 InitializeCounter(liftCounter, topElevator.LiftPositionToFloor() + 1);
             else
                 ResetCounter(liftCounter);
@@ -629,6 +667,26 @@ namespace Oxide.Plugins
             }
 
             return pluginConfig.defaultMaxFloors;
+        }
+
+        private bool TryGetSpeedConfig(Elevator topElevator, out SpeedConfig speedConfig)
+        {
+            if (topElevator is ElevatorStatic)
+            {
+                if (pluginConfig.staticElevators.enableCustomSpeed)
+                {
+                    speedConfig = pluginConfig.staticElevators.speed;
+                    return true;
+                }
+            }
+            else if (pluginConfig.enableSpeedOptions)
+            {
+                speedConfig = GetPlayerSpeedConfig(topElevator.OwnerID);
+                return true;
+            }
+
+            speedConfig = null;
+            return false;
         }
 
         private SpeedConfig GetPlayerSpeedConfig(ulong ownerId)
@@ -724,6 +782,24 @@ namespace Oxide.Plugins
                     easeType = EaseType.Cubic.ToString()
                 },
             };
+
+            [JsonProperty("StaticElevators")]
+            public StaticElevatorConfig staticElevators = new StaticElevatorConfig();
+        }
+
+        internal class StaticElevatorConfig
+        {
+            [JsonProperty("EnableCustomSpeed")]
+            public bool enableCustomSpeed = false;
+
+            [JsonProperty("Speed")]
+            public SpeedConfig speed = new SpeedConfig()
+            {
+                baseSpeed = 3.5f,
+            };
+
+            [JsonProperty("EnableLiftCounter")]
+            public bool enableLiftCounter = false;
         }
 
         internal enum EaseType { Linear, Quadratic, Cubic }
