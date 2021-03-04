@@ -97,6 +97,16 @@ namespace Oxide.Plugins
             }
         }
 
+        private void Unload()
+        {
+            // Remove lift counters on unload.
+            foreach (var counter in BaseNetworkable.serverEntities.OfType<PowerCounter>().ToArray())
+            {
+                if (counter != null && IsLiftCounter(counter))
+                    counter.Kill();
+            }
+        }
+
         private void OnEntitySpawned(Elevator elevator)
         {
             // This is required to allow placement to succeed above 6 floors
