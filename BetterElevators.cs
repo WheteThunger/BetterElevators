@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.0")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.1")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -56,45 +56,44 @@ namespace Oxide.Plugins
             foreach (var speedConfig in pluginConfig.speedsRequiringPermission)
                 if (!string.IsNullOrWhiteSpace(speedConfig.name))
                     permission.RegisterPermission(GetSpeedPermission(speedConfig.name), this);
+
+            Unsubscribe(nameof(OnEntitySpawned));
         }
 
         private void OnServerInitialized(bool initialBoot)
         {
             foreach (var entity in BaseNetworkable.serverEntities)
             {
-                if (initialBoot)
+                var elevator = entity as Elevator;
+                if (elevator != null)
                 {
-                    var counter = entity as PowerCounter;
-                    if (counter != null)
-                    {
-                        OnEntitySpawned(counter);
-                        continue;
-                    }
+                    OnEntitySpawned(elevator);
+                    continue;
                 }
-                else
+
+                var elevatorIoEntity = entity as ElevatorIOEntity;
+                if (elevatorIoEntity != null)
                 {
-                    var elevator = entity as Elevator;
-                    if (elevator != null)
-                    {
-                        OnEntitySpawned(elevator);
-                        continue;
-                    }
+                    OnEntitySpawned(elevatorIoEntity);
+                    continue;
+                }
 
-                    var elevatorIoEntity = entity as ElevatorIOEntity;
-                    if (elevatorIoEntity != null)
-                    {
-                        OnEntitySpawned(elevatorIoEntity);
-                        continue;
-                    }
+                var lift = entity as ElevatorLift;
+                if (lift != null)
+                {
+                    OnEntitySpawned(lift);
+                    continue;
+                }
 
-                    var lift = entity as ElevatorLift;
-                    if (lift != null)
-                    {
-                        OnEntitySpawned(lift);
-                        continue;
-                    }
+                var counter = entity as PowerCounter;
+                if (counter != null)
+                {
+                    OnEntitySpawned(counter);
+                    continue;
                 }
             }
+
+            Subscribe(nameof(OnEntitySpawned));
         }
 
         private void Unload()
