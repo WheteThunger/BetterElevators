@@ -41,6 +41,8 @@ namespace Oxide.Plugins
 
         private Configuration pluginConfig;
 
+        private ProtectionProperties _immortalProtection;
+
         #endregion
 
         #region Hooks
@@ -60,8 +62,12 @@ namespace Oxide.Plugins
             Unsubscribe(nameof(OnEntitySpawned));
         }
 
-        private void OnServerInitialized(bool initialBoot)
+        private void OnServerInitialized()
         {
+            _immortalProtection = ScriptableObject.CreateInstance<ProtectionProperties>();
+            _immortalProtection.name = "BetterElevatorsCounterProtection";
+            _immortalProtection.Add(1);
+
             foreach (var entity in BaseNetworkable.serverEntities)
             {
                 var elevator = entity as Elevator;
@@ -84,13 +90,6 @@ namespace Oxide.Plugins
                     OnEntitySpawned(lift);
                     continue;
                 }
-
-                var counter = entity as PowerCounter;
-                if (counter != null)
-                {
-                    OnEntitySpawned(counter);
-                    continue;
-                }
             }
 
             Subscribe(nameof(OnEntitySpawned));
@@ -98,6 +97,8 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
+            UnityEngine.Object.Destroy(_immortalProtection);
+
             // Remove lift counters on unload.
             foreach (var counter in BaseNetworkable.serverEntities.OfType<PowerCounter>().ToArray())
             {
@@ -125,16 +126,6 @@ namespace Oxide.Plugins
             // Check for an existing counter since this is also called when loading a save
             if (AllowLiftCounter(topElevator) && GetLiftCounter(lift) == null)
                 AddLiftCounter(lift, topElevator.LiftPositionToFloor() + 1, topElevator.OwnerID, startPowered: ElevatorHasPower(topElevator));
-        }
-
-        private void OnEntitySpawned(PowerCounter counter)
-        {
-            if (IsLiftCounter(counter))
-            {
-                counter.pickup.enabled = false;
-                RemoveGroundWatch(counter);
-                HideInputsAndOutputs(counter);
-            }
         }
 
         private void OnEntitySpawned(ElevatorIOEntity ioEntity)
@@ -411,14 +402,6 @@ namespace Oxide.Plugins
             });
         }
 
-        private object OnEntityTakeDamage(PowerCounter counter)
-        {
-            if (counter != null && IsLiftCounter(counter))
-                return false;
-
-            return null;
-        }
-
         #endregion
 
         #region Helper Methods
@@ -520,6 +503,11 @@ namespace Oxide.Plugins
             if (counter == null)
                 return;
 
+            RemoveGroundWatch(counter);
+            HideInputsAndOutputs(counter);
+
+            counter.pickup.enabled = false;
+            counter.baseProtection = _immortalProtection;
             counter.OwnerID = ownerId;
             counter.SetParent(lift);
             counter.Spawn();
