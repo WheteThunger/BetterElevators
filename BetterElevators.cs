@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.1")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.2")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -98,12 +98,31 @@ namespace Oxide.Plugins
         {
             UnityEngine.Object.Destroy(_immortalProtection);
 
-            // Remove lift counters on unload.
-            foreach (var counter in BaseNetworkable.serverEntities.OfType<PowerCounter>().ToArray())
+            var liftCounters = new List<PowerCounter>();
+
+            foreach (var entity in BaseNetworkable.serverEntities)
             {
-                if (counter != null && IsLiftCounter(counter))
-                    counter.Kill();
+                var lift = entity as ElevatorLift;
+                if (lift != null)
+                {
+                    if (!(lift is ElevatorLiftStatic))
+                        CustomParentTrigger.RemoveFromLift(lift);
+
+                    continue;
+                }
+
+                var counter = entity as PowerCounter;
+                if (counter != null)
+                {
+                    if (IsLiftCounter(counter))
+                        liftCounters.Add(counter);
+
+                    continue;
+                }
             }
+
+            foreach (var counter in liftCounters)
+                counter.Kill();
         }
 
         private void OnEntitySpawned(Elevator elevator)
@@ -120,6 +139,9 @@ namespace Oxide.Plugins
             var topElevator = lift.GetParentEntity() as Elevator;
             if (topElevator == null)
                 return;
+
+            if (!(lift is ElevatorLiftStatic))
+                CustomParentTrigger.AddToLift(lift);
 
             // Add a counter to the lift when it spawns
             // Check for an existing counter since this is also called when loading a save
@@ -648,6 +670,156 @@ namespace Oxide.Plugins
                 InitializeCounter(liftCounter, topElevator.LiftPositionToFloor() + 1);
             else
                 ResetCounter(liftCounter);
+        }
+
+        #endregion
+
+        #region Custom Parent Trigger
+
+        private class CustomParentTrigger : TriggerParentEnclosed
+        {
+            public static void AddToLift(ElevatorLift lift)
+            {
+                var originalTrigger = GetChildComponent<TriggerParentEnclosed>(lift);
+                if (originalTrigger == null)
+                    return;
+
+                var customTrigger = originalTrigger.gameObject.AddComponent<CustomParentTrigger>();
+                customTrigger._original = originalTrigger;
+
+                customTrigger.contents = originalTrigger.contents?.ToHashSet();
+                customTrigger.entityContents = originalTrigger.entityContents?.ToHashSet();
+
+                // TriggerBase fields.
+                customTrigger.interestLayers = originalTrigger.interestLayers;
+
+                // TriggerParent fields.
+                customTrigger.associatedMountable = originalTrigger.associatedMountable;
+                customTrigger.parentMountedPlayers = originalTrigger.parentMountedPlayers;
+                customTrigger.ParentNPCPlayers = originalTrigger.ParentNPCPlayers;
+                customTrigger.overrideOtherTriggers = originalTrigger.overrideOtherTriggers;
+
+                // TriggerParentEnclosed fields.
+                customTrigger.Padding = originalTrigger.Padding;
+                customTrigger.intersectionMode = originalTrigger.intersectionMode;
+                customTrigger.CheckBoundsOnUnparent = originalTrigger.CheckBoundsOnUnparent;
+
+                if (customTrigger.entityContents != null)
+                {
+                    foreach (var entity in customTrigger.entityContents)
+                        customTrigger.OnEntityEnter(entity);
+                }
+
+                originalTrigger.enabled = false;
+            }
+
+            public static void RemoveFromLift(ElevatorLift lift)
+            {
+                var customTrigger = GetChildComponent<CustomParentTrigger>(lift);
+                if (customTrigger == null)
+                    return;
+
+                var originalTrigger = customTrigger._original;
+                originalTrigger.enabled = true;
+
+                originalTrigger.contents = customTrigger.contents?.ToHashSet();
+                originalTrigger.entityContents = customTrigger.entityContents?.ToHashSet();
+
+                if (originalTrigger.entityContents != null)
+                {
+                    foreach (var entity in originalTrigger.entityContents)
+                        originalTrigger.OnEntityEnter(entity);
+                }
+
+                DestroyImmediate(customTrigger);
+            }
+
+            private static T GetChildComponent<T>(UnityEngine.Component component) where T : UnityEngine.Component
+            {
+                foreach (Transform child in component.transform)
+                {
+                    var childComponent = child.GetComponent<T>();
+                    if (childComponent != null && childComponent.GetType() == typeof(T))
+                        return childComponent;
+                }
+
+                return null;
+            }
+
+            private static T GetSiblingComponent<T>(UnityEngine.Component component) where T : UnityEngine.Component
+            {
+                foreach (var siblingComponent in component.GetComponents<T>())
+                {
+                    if (siblingComponent != component && siblingComponent.GetType() == typeof(T))
+                        return siblingComponent;
+                }
+
+                return null;
+            }
+
+            private static List<T> GetChildEntities<T>(BaseEntity entity) where T : BaseEntity
+            {
+                var entityList = new List<T>();
+
+                foreach (var child in entity.children)
+                {
+                    var childOfType = child as T;
+                    if (childOfType != null)
+                        entityList.Add(childOfType);
+                }
+
+                return entityList;
+            }
+
+            // Remove the Deployed layer from the clip mask to avoid issues with clipping through the elavator at high speed.
+            private const int ClipMask = Rust.Layers.Mask.Default
+                + Rust.Layers.Mask.World
+                + Rust.Layers.Mask.Construction
+                + Rust.Layers.Mask.Terrain
+                + Rust.Layers.Mask.Vehicle_Large
+                + Rust.Layers.Mask.Tree;
+
+            private BoxCollider _boxCollider;
+            private TriggerParentEnclosed _original;
+
+            private void Awake()
+            {
+                _boxCollider = GetComponent<BoxCollider>();
+            }
+
+            protected override bool ShouldParent(BaseEntity entity)
+            {
+                var parent = entity.GetParentEntity();
+                if (!overrideOtherTriggers && BaseEntityEx.IsValid(parent) && parent != base.gameObject.ToBaseEntity())
+                    return false;
+
+                if (entity.FindTrigger<TriggerParentExclusion>() != null)
+                    return false;
+
+                if (GamePhysics.CheckOBB(entity.WorldSpaceBounds(), ClipMask, QueryTriggerInteraction.Ignore))
+                    return false;
+
+                if (!parentMountedPlayers)
+                {
+                    BasePlayer basePlayer = entity.ToPlayer();
+                    if (basePlayer != null && basePlayer.isMounted)
+                        return false;
+                }
+
+                return IsInside(entity, Padding);
+            }
+
+            private bool IsInside(BaseEntity ent, float padding)
+            {
+                Bounds bounds = new Bounds(_boxCollider.center, _boxCollider.size);
+                if (padding > 0f)
+                {
+                    bounds.Expand(padding);
+                }
+                OBB obb = new OBB(_boxCollider.transform, bounds);
+                Vector3 target = (intersectionMode == TriggerMode.TriggerPoint) ? ent.TriggerPoint() : ent.PivotPoint();
+                return obb.Contains(target);
+            }
         }
 
         #endregion
