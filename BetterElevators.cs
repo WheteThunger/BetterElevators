@@ -1132,6 +1132,11 @@ namespace Oxide.Plugins
             {
                 [Lang.NoPermissionToFloor] = "Error: You don't have permission to build elevators taller than {0} floors.",
             }, this);
+            //Adding translation in portuguese brazil
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                [Lang.NoPermissionToFloor] = "Erro: você não tem permissão para construir elevadores com mais de {0} andares.",
+            }, this, "pt-BR");
         }
 
         #endregion
