@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.2")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.3")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -790,7 +790,7 @@ namespace Oxide.Plugins
             protected override bool ShouldParent(BaseEntity entity)
             {
                 var parent = entity.GetParentEntity();
-                if (!overrideOtherTriggers && BaseEntityEx.IsValid(parent) && parent != base.gameObject.ToBaseEntity())
+                if (!overrideOtherTriggers && parent != null && parent.net != null && parent != base.gameObject.ToBaseEntity())
                     return false;
 
                 if (entity.FindTrigger<TriggerParentExclusion>() != null)
