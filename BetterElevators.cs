@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.3")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.4")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -779,16 +779,22 @@ namespace Oxide.Plugins
                 + Rust.Layers.Mask.Vehicle_Large
                 + Rust.Layers.Mask.Tree;
 
-            private BoxCollider _boxCollider;
             private TriggerParentEnclosed _original;
 
-            private void Awake()
+            public override bool ShouldParent(BaseEntity entity, bool bypassOtherTriggerCheck = false)
             {
-                _boxCollider = GetComponent<BoxCollider>();
-            }
+                if (!entity.canTriggerParent)
+                    return false;
 
-            protected override bool ShouldParent(BaseEntity entity)
-            {
+                if (!bypassOtherTriggerCheck)
+                {
+                    BaseEntity parentEntity = entity.GetParentEntity();
+                    if (!overrideOtherTriggers && BaseNetworkableEx.IsValid(parentEntity) && parentEntity != GameObjectEx.ToBaseEntity(base.gameObject))
+                    {
+                        return false;
+                    }
+                }
+
                 var parent = entity.GetParentEntity();
                 if (!overrideOtherTriggers && parent != null && parent.net != null && parent != base.gameObject.ToBaseEntity())
                     return false;
@@ -799,26 +805,24 @@ namespace Oxide.Plugins
                 if (!(entity is BaseRidableAnimal) && GamePhysics.CheckOBB(entity.WorldSpaceBounds(), ClipMask, QueryTriggerInteraction.Ignore))
                     return false;
 
-                if (!parentMountedPlayers)
+                if (!parentMountedPlayers || !parentSleepers)
                 {
                     BasePlayer basePlayer = entity.ToPlayer();
-                    if (basePlayer != null && basePlayer.isMounted)
-                        return false;
+                    if (basePlayer != null)
+                    {
+                        if (!parentMountedPlayers && basePlayer.isMounted)
+                        {
+                            return false;
+                        }
+
+                        if (!parentSleepers && basePlayer.IsSleeping())
+                        {
+                            return false;
+                        }
+                    }
                 }
 
                 return IsInside(entity, Padding);
-            }
-
-            private bool IsInside(BaseEntity ent, float padding)
-            {
-                Bounds bounds = new Bounds(_boxCollider.center, _boxCollider.size);
-                if (padding > 0f)
-                {
-                    bounds.Expand(padding);
-                }
-                OBB obb = new OBB(_boxCollider.transform, bounds);
-                Vector3 target = (intersectionMode == TriggerMode.TriggerPoint) ? ent.TriggerPoint() : ent.PivotPoint();
-                return obb.Contains(target);
             }
         }
 
