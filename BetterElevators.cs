@@ -796,7 +796,7 @@ namespace Oxide.Plugins
                 if (entity.FindTrigger<TriggerParentExclusion>() != null)
                     return false;
 
-                if (GamePhysics.CheckOBB(entity.WorldSpaceBounds(), ClipMask, QueryTriggerInteraction.Ignore))
+                if (!(entity is BaseRidableAnimal) && GamePhysics.CheckOBB(entity.WorldSpaceBounds(), ClipMask, QueryTriggerInteraction.Ignore))
                     return false;
 
                 if (!parentMountedPlayers)
