@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.4")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.5")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -676,7 +676,7 @@ namespace Oxide.Plugins
 
         #region Custom Parent Trigger
 
-        private class CustomParentTrigger : TriggerParentEnclosed
+        private class CustomParentTrigger : TriggerParentElevator
         {
             public static void AddToLift(ElevatorLift lift)
             {
@@ -746,83 +746,17 @@ namespace Oxide.Plugins
                 return null;
             }
 
-            private static T GetSiblingComponent<T>(UnityEngine.Component component) where T : UnityEngine.Component
-            {
-                foreach (var siblingComponent in component.GetComponents<T>())
-                {
-                    if (siblingComponent != component && siblingComponent.GetType() == typeof(T))
-                        return siblingComponent;
-                }
-
-                return null;
-            }
-
-            private static List<T> GetChildEntities<T>(BaseEntity entity) where T : BaseEntity
-            {
-                var entityList = new List<T>();
-
-                foreach (var child in entity.children)
-                {
-                    var childOfType = child as T;
-                    if (childOfType != null)
-                        entityList.Add(childOfType);
-                }
-
-                return entityList;
-            }
-
             // Remove the Deployed layer from the clip mask to avoid issues with clipping through the elavator at high speed.
-            private const int ClipMask = Rust.Layers.Mask.Default
-                + Rust.Layers.Mask.World
-                + Rust.Layers.Mask.Construction
-                + Rust.Layers.Mask.Terrain
-                + Rust.Layers.Mask.Vehicle_Large
-                + Rust.Layers.Mask.Tree;
+            private const int ClipMask = TriggerParentEnclosed.CLIP_CHECK_MASK & ~Rust.Layers.Mask.Deployed;
 
             private TriggerParentEnclosed _original;
 
-            public override bool ShouldParent(BaseEntity entity, bool bypassOtherTriggerCheck = false)
+            protected override bool IsClipping(BaseEntity ent)
             {
-                if (!entity.canTriggerParent)
+                if (AllowHorsesToBypassClippingChecks && ent is BaseRidableAnimal)
                     return false;
 
-                if (!bypassOtherTriggerCheck)
-                {
-                    BaseEntity parentEntity = entity.GetParentEntity();
-                    if (!overrideOtherTriggers && BaseNetworkableEx.IsValid(parentEntity) && parentEntity != GameObjectEx.ToBaseEntity(base.gameObject))
-                    {
-                        return false;
-                    }
-                }
-
-                var parent = entity.GetParentEntity();
-                if (!overrideOtherTriggers && parent != null && parent.net != null && parent != base.gameObject.ToBaseEntity())
-                    return false;
-
-                if (entity.FindTrigger<TriggerParentExclusion>() != null)
-                    return false;
-
-                if (!(entity is BaseRidableAnimal) && GamePhysics.CheckOBB(entity.WorldSpaceBounds(), ClipMask, QueryTriggerInteraction.Ignore))
-                    return false;
-
-                if (!parentMountedPlayers || !parentSleepers)
-                {
-                    BasePlayer basePlayer = entity.ToPlayer();
-                    if (basePlayer != null)
-                    {
-                        if (!parentMountedPlayers && basePlayer.isMounted)
-                        {
-                            return false;
-                        }
-
-                        if (!parentSleepers && basePlayer.IsSleeping())
-                        {
-                            return false;
-                        }
-                    }
-                }
-
-                return IsInside(entity, Padding);
+                return GamePhysics.CheckOBB(ent.WorldSpaceBounds(), ClipMask, QueryTriggerInteraction.Ignore);
             }
         }
 
