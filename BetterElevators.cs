@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.5")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.6")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -682,7 +682,7 @@ namespace Oxide.Plugins
         {
             public static void AddToLift(ElevatorLift lift)
             {
-                var originalTrigger = GetChildComponent<TriggerParentEnclosed>(lift);
+                var originalTrigger = GetChildComponent<TriggerParentElevator>(lift);
                 if (originalTrigger == null)
                     return;
 
