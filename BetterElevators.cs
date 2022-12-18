@@ -429,6 +429,11 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
+        public static void LogDebug(string message) => Interface.Oxide.LogDebug($"[Better Elevators] {message}");
+        public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Better Elevators] {message}");
+        public static void LogWarning(string message) => Interface.Oxide.LogWarning($"[Better Elevators] {message}");
+        public static void LogError(string message) => Interface.Oxide.LogError($"[Better Elevators] {message}");
+
         private bool FloorSelectionWasBlocked(ElevatorLift lift, BasePlayer player, int targetFloor)
         {
             object hookResult = Interface.CallHook("OnElevatorFloorSelect", lift, player, targetFloor);
@@ -709,7 +714,12 @@ namespace Oxide.Plugins
                 if (customTrigger.entityContents != null)
                 {
                     foreach (var entity in customTrigger.entityContents)
+                    {
+                        if (entity == null)
+                            continue;
+
                         customTrigger.OnEntityEnter(entity);
+                    }
                 }
 
                 originalTrigger.enabled = false;
@@ -730,7 +740,12 @@ namespace Oxide.Plugins
                 if (originalTrigger.entityContents != null)
                 {
                     foreach (var entity in originalTrigger.entityContents)
+                    {
+                        if (entity == null)
+                            continue;
+
                         originalTrigger.OnEntityEnter(entity);
+                    }
                 }
 
                 DestroyImmediate(customTrigger);
