@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 using Newtonsoft.Json.Converters;
 using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
@@ -12,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.6")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.7")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -38,7 +37,7 @@ namespace Oxide.Plugins
         private readonly Vector3 StaticLiftCounterPositon = new Vector3(1.183f, -0.09f, -0.92f);
         private readonly Quaternion StaticLiftCounterRotation = Quaternion.Euler(0, -90, 0);
 
-        private readonly Dictionary<uint, Action> _liftTimerActions = new Dictionary<uint, Action>();
+        private readonly Dictionary<NetworkableId, Action> _liftTimerActions = new Dictionary<NetworkableId, Action>();
         private ProtectionProperties _immortalProtection;
         private Configuration _pluginConfig;
 
@@ -224,7 +223,7 @@ namespace Oxide.Plugins
                             return;
 
                         float timeToTravel;
-                        topElevator.RequestMoveLiftTo(targetFloor, out timeToTravel);
+                        topElevator.RequestMoveLiftTo(targetFloor, out timeToTravel, topElevator);
                     });
                 }
             }
@@ -263,7 +262,7 @@ namespace Oxide.Plugins
             {
                 CancelHorseDropToGround(lift);
                 float timeToTravel;
-                elevatorBelow.RequestMoveLiftTo(Math.Min(targetFloor, elevatorBelow.Floor), out timeToTravel);
+                elevatorBelow.RequestMoveLiftTo(Math.Min(targetFloor, elevatorBelow.Floor), out timeToTravel, elevator);
             }
         }
 
@@ -373,7 +372,7 @@ namespace Oxide.Plugins
                 return false;
 
             float unusedTimeToTravel;
-            topElevator.RequestMoveLiftTo(targetFloor, out unusedTimeToTravel);
+            topElevator.RequestMoveLiftTo(targetFloor, out unusedTimeToTravel, topElevator);
 
             return false;
         }
@@ -471,7 +470,7 @@ namespace Oxide.Plugins
 
             if (topElevator.LiftPositionToFloor() == targetFloor)
             {
-                topElevator.OnLiftCalledWhenAtTargetFloor();
+                (topElevator as ElevatorStatic)?.OnLiftArrivedAtFloor();
                 return false;
             }
 
