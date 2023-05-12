@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.7")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.8")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -162,7 +162,7 @@ namespace Oxide.Plugins
 
             // Add a counter to the lift when it spawns
             // Check for an existing counter since this is also called when loading a save
-            if (AllowLiftCounter(topElevator) && GetLiftCounter(lift) == null)
+            if (AllowLiftCounter(lift, topElevator) && GetLiftCounter(lift) == null)
             {
                 AddLiftCounter(lift, topElevator.LiftPositionToFloor() + 1, topElevator.OwnerID, startPowered: ElevatorHasPower(topElevator));
             }
@@ -524,10 +524,11 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private bool AllowLiftCounter(Elevator topElevator)
+        private bool AllowLiftCounter(ElevatorLift lift, Elevator topElevator)
         {
             if (topElevator.IsStatic)
-                return _pluginConfig.StaticElevators.EnableLiftCounter;
+                return _pluginConfig.StaticElevators.EnableLiftCounter
+                    && !lift.ShortPrefabName.Contains("elevator_office_lift.static");
 
             var ownerId = topElevator.OwnerID;
             return !_pluginConfig.RequirePermissionForLiftCounter
