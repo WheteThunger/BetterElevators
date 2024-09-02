@@ -33,15 +33,15 @@ namespace Oxide.Plugins
 
         private readonly object False = false;
 
-        private readonly Vector3 LiftCounterPosition = new Vector3(-1.18f, -0.16f, -0.1f);
+        private readonly Vector3 LiftCounterPosition = new(-1.18f, -0.16f, -0.1f);
         private readonly Quaternion LiftCounterRotation = Quaternion.Euler(0, 90, 0);
 
-        private readonly Vector3 StaticLiftCounterPosition = new Vector3(1.183f, -0.09f, -0.92f);
+        private readonly Vector3 StaticLiftCounterPosition = new(1.183f, -0.09f, -0.92f);
         private readonly Quaternion StaticLiftCounterRotation = Quaternion.Euler(0, -90, 0);
 
-        private readonly Dictionary<NetworkableId, Action> _liftTimerActions = new Dictionary<NetworkableId, Action>();
+        private readonly Dictionary<NetworkableId, Action> _liftTimerActions = new();
         private ProtectionProperties _immortalProtection;
-        private Configuration _pluginConfig;
+        private Configuration _config;
 
         #endregion
 
@@ -52,12 +52,12 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionPowerless, this);
             permission.RegisterPermission(PermissionLiftCounter, this);
 
-            foreach (var maxFloorsAmount in _pluginConfig.MaxFloorsRequiringPermission)
+            foreach (var maxFloorsAmount in _config.MaxFloorsRequiringPermission)
             {
                 permission.RegisterPermission(GetMaxFloorsPermission(maxFloorsAmount), this);
             }
 
-            foreach (var speedConfig in _pluginConfig.SpeedsRequiringPermission)
+            foreach (var speedConfig in _config.SpeedsRequiringPermission)
             {
                 if (!string.IsNullOrWhiteSpace(speedConfig.Name))
                 {
@@ -112,7 +112,7 @@ namespace Oxide.Plugins
                 var lift = entity as ElevatorLift;
                 if (lift != null)
                 {
-                    if (!(lift is ElevatorLiftStatic))
+                    if (lift is not ElevatorLiftStatic)
                     {
                         CustomParentTrigger.RemoveFromLift(lift);
                     }
@@ -155,7 +155,7 @@ namespace Oxide.Plugins
             if (topElevator == null)
                 return;
 
-            if (!(lift is ElevatorLiftStatic))
+            if (lift is not ElevatorLiftStatic)
             {
                 CustomParentTrigger.AddToLift(lift);
             }
@@ -222,16 +222,15 @@ namespace Oxide.Plugins
             if (elevatorBelow == null)
                 return;
 
-            if (_pluginConfig.EnsureConsistentOwner && elevatorBelow.OwnerID != 0)
+            if (_config.EnsureConsistentOwner && elevatorBelow.OwnerID != 0)
             {
                 topElevator.OwnerID = elevatorBelow.OwnerID;
             }
 
             var lift = elevatorBelow.liftEntity;
-            if (lift != null && _pluginConfig.MaintainLiftPositionWhenHeightChanges)
+            if (lift != null && _config.MaintainLiftPositionWhenHeightChanges)
             {
-                int targetFloor;
-                var didStopMovement = StopLiftMovement(lift, elevatorBelow, out targetFloor);
+                var didStopMovement = StopLiftMovement(lift, elevatorBelow, out var targetFloor);
 
                 lift.SetParent(topElevator, worldPositionStays: true, sendImmediate: true);
                 topElevator.liftEntity = lift;
@@ -244,8 +243,7 @@ namespace Oxide.Plugins
                         if (topElevator == null)
                             return;
 
-                        float timeToTravel;
-                        topElevator.RequestMoveLiftTo(targetFloor, out timeToTravel, topElevator);
+                        topElevator.RequestMoveLiftTo(targetFloor, out _, topElevator);
                     });
                 }
             }
@@ -253,7 +251,7 @@ namespace Oxide.Plugins
 
         private void OnEntityKill(Elevator elevator)
         {
-            if (!_pluginConfig.MaintainLiftPositionWhenHeightChanges || elevator == null || elevator.Floor == 0)
+            if (!_config.MaintainLiftPositionWhenHeightChanges || elevator == null || elevator.Floor == 0)
                 return;
 
             var elevatorBelow = elevator.GetElevatorInDirection(Elevator.Direction.Down);
@@ -273,8 +271,7 @@ namespace Oxide.Plugins
             if (liftFloor > elevatorBelow.Floor)
                 return;
 
-            int targetFloor;
-            var didStopMovement = StopLiftMovement(lift, topElevator, out targetFloor);
+            var didStopMovement = StopLiftMovement(lift, topElevator, out var targetFloor);
 
             lift.SetParent(elevatorBelow, worldPositionStays: true, sendImmediate: true);
             elevatorBelow.liftEntity = lift;
@@ -283,8 +280,7 @@ namespace Oxide.Plugins
             if (didStopMovement)
             {
                 CancelHorseDropToGround(lift);
-                float timeToTravel;
-                elevatorBelow.RequestMoveLiftTo(Math.Min(targetFloor, elevatorBelow.Floor), out timeToTravel, elevator);
+                elevatorBelow.RequestMoveLiftTo(Math.Min(targetFloor, elevatorBelow.Floor), out _, elevator);
             }
         }
 
@@ -312,8 +308,7 @@ namespace Oxide.Plugins
             var distance = Mathf.Abs(lift.transform.localPosition.y - localSpaceFloorPosition.y);
             var timeToTravel = distance / topElevator.LiftSpeedPerMetre;
 
-            SpeedConfig speedConfig;
-            if (!TryGetSpeedConfig(topElevator, out speedConfig))
+            if (!TryGetSpeedConfig(topElevator, out var speedConfig))
             {
                 if (GetLiftCounter(lift) != null && timeToTravel > 0)
                     StartUpdatingLiftCounter(lift, timeToTravel);
@@ -398,8 +393,7 @@ namespace Oxide.Plugins
             if (player.IsBuildingBlocked() || FloorSelectionWasBlocked(lift, player, targetFloor))
                 return False;
 
-            float unusedTimeToTravel;
-            topElevator.RequestMoveLiftTo(targetFloor, out unusedTimeToTravel, topElevator);
+            topElevator.RequestMoveLiftTo(targetFloor, out _, topElevator);
 
             return False;
         }
@@ -463,8 +457,7 @@ namespace Oxide.Plugins
 
         private bool FloorSelectionWasBlocked(ElevatorLift lift, BasePlayer player, int targetFloor)
         {
-            var hookResult = Interface.CallHook("OnElevatorFloorSelect", lift, player, targetFloor);
-            return hookResult is bool && (bool)hookResult == false;
+            return Interface.CallHook("OnElevatorFloorSelect", lift, player, targetFloor) is false;
         }
 
         private string GetSpeedPermission(string permissionName) => $"{PermissionSpeedPrefix}.{permissionName}";
@@ -527,11 +520,11 @@ namespace Oxide.Plugins
         private bool AllowLiftCounter(ElevatorLift lift, Elevator topElevator)
         {
             if (topElevator.IsStatic)
-                return _pluginConfig.StaticElevators.EnableLiftCounter
+                return _config.StaticElevators.EnableLiftCounter
                     && !lift.ShortPrefabName.Contains("elevator_office_lift.static");
 
             var ownerId = topElevator.OwnerID;
-            return !_pluginConfig.RequirePermissionForLiftCounter
+            return !_config.RequirePermissionForLiftCounter
                 || ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionLiftCounter);
         }
 
@@ -541,21 +534,29 @@ namespace Oxide.Plugins
                 return false;
 
             var ownerId = topElevator.OwnerID;
-            return !_pluginConfig.RequirePermissionForPowerless
+            return !_config.RequirePermissionForPowerless
                 || ownerId != 0 && permission.UserHasPermission(ownerId.ToString(), PermissionPowerless);
         }
 
-        private Elevator GetTopElevator(Elevator elevator) =>
-            GetFarthestElevatorInDirection(elevator, Elevator.Direction.Up);
+        private Elevator GetTopElevator(Elevator elevator)
+        {
+            return GetFarthestElevatorInDirection(elevator, Elevator.Direction.Up);
+        }
 
-        private bool IsPowerlessElevator(Elevator elevator) =>
-            AllowPowerless(elevator);
+        private bool IsPowerlessElevator(Elevator elevator)
+        {
+            return AllowPowerless(elevator);
+        }
 
-        private bool IsLiftCounter(PowerCounter counter) =>
-            counter.GetParentEntity() is ElevatorLift;
+        private bool IsLiftCounter(PowerCounter counter)
+        {
+            return counter.GetParentEntity() is ElevatorLift;
+        }
 
-        private bool ElevatorHasPower(Elevator topElevator) =>
-            topElevator.IsStatic || topElevator.ioEntity != null && topElevator.ioEntity.IsPowered();
+        private bool ElevatorHasPower(Elevator topElevator)
+        {
+            return topElevator.IsStatic || topElevator.ioEntity != null && topElevator.ioEntity.IsPowered();
+        }
 
         private void RemoveGroundWatch(BaseEntity entity)
         {
@@ -642,8 +643,7 @@ namespace Oxide.Plugins
             if (liftCounter == null)
                 return;
 
-            Action existingTimerAction;
-            if (_liftTimerActions.TryGetValue(lift.net.ID, out existingTimerAction))
+            if (_liftTimerActions.TryGetValue(lift.net.ID, out var existingTimerAction))
             {
                 lift.CancelInvoke(existingTimerAction);
             }
@@ -827,29 +827,29 @@ namespace Oxide.Plugins
 
         private int GetPlayerMaxFloors(string userIdString)
         {
-            if (_pluginConfig.MaxFloorsRequiringPermission == null || _pluginConfig.MaxFloorsRequiringPermission.Length == 0)
-                return _pluginConfig.DefaultMaxFloors;
+            if (_config.MaxFloorsRequiringPermission == null || _config.MaxFloorsRequiringPermission.Length == 0)
+                return _config.DefaultMaxFloors;
 
-            for (var i = _pluginConfig.MaxFloorsRequiringPermission.Length - 1; i >= 0; i--)
+            for (var i = _config.MaxFloorsRequiringPermission.Length - 1; i >= 0; i--)
             {
-                var floorAmount = _pluginConfig.MaxFloorsRequiringPermission[i];
+                var floorAmount = _config.MaxFloorsRequiringPermission[i];
                 if (permission.UserHasPermission(userIdString, GetMaxFloorsPermission(floorAmount)))
                     return floorAmount;
             }
 
-            return _pluginConfig.DefaultMaxFloors;
+            return _config.DefaultMaxFloors;
         }
 
         private SpeedConfig GetPlayerSpeedConfig(ulong ownerId)
         {
-            if (ownerId == 0 || _pluginConfig.SpeedsRequiringPermission == null || _pluginConfig.SpeedsRequiringPermission.Length == 0)
-                return _pluginConfig.DefaultSpeed;
+            if (ownerId == 0 || _config.SpeedsRequiringPermission == null || _config.SpeedsRequiringPermission.Length == 0)
+                return _config.DefaultSpeed;
 
             var userIdString = ownerId.ToString();
 
-            for (var i = _pluginConfig.SpeedsRequiringPermission.Length - 1; i >= 0; i--)
+            for (var i = _config.SpeedsRequiringPermission.Length - 1; i >= 0; i--)
             {
-                var speedConfig = _pluginConfig.SpeedsRequiringPermission[i];
+                var speedConfig = _config.SpeedsRequiringPermission[i];
                 if (!string.IsNullOrWhiteSpace(speedConfig.Name) &&
                     permission.UserHasPermission(userIdString, GetSpeedPermission(speedConfig.Name)))
                 {
@@ -857,20 +857,20 @@ namespace Oxide.Plugins
                 }
             }
 
-            return _pluginConfig.DefaultSpeed;
+            return _config.DefaultSpeed;
         }
 
         private bool TryGetSpeedConfig(Elevator topElevator, out SpeedConfig speedConfig)
         {
             if (topElevator is ElevatorStatic)
             {
-                if (_pluginConfig.StaticElevators.EnableCustomSpeed)
+                if (_config.StaticElevators.EnableCustomSpeed)
                 {
-                    speedConfig = _pluginConfig.StaticElevators.Speed;
+                    speedConfig = _config.StaticElevators.Speed;
                     return true;
                 }
             }
-            else if (_pluginConfig.EnableSpeedOptions)
+            else if (_config.EnableSpeedOptions)
             {
                 speedConfig = GetPlayerSpeedConfig(topElevator.OwnerID);
                 return true;
@@ -902,8 +902,10 @@ namespace Oxide.Plugins
             [JsonConverter(typeof(StringEnumConverter))]
             public EaseType EaseType = EaseType.Linear;
 
-            public float GetSpeedForLevels(int levels) =>
-                Math.Min(Math.Max(BaseSpeed, MaxSpeed), BaseSpeed + (levels - 1) * SpeedPerAdditionalFloor);
+            public float GetSpeedForLevels(int levels)
+            {
+                return Math.Min(Math.Max(BaseSpeed, MaxSpeed), BaseSpeed + (levels - 1) * SpeedPerAdditionalFloor);
+            }
         }
 
         private class StaticElevatorConfig
@@ -912,7 +914,7 @@ namespace Oxide.Plugins
             public bool EnableCustomSpeed = false;
 
             [JsonProperty("Speed")]
-            public SpeedConfig Speed = new SpeedConfig()
+            public SpeedConfig Speed = new()
             {
                 BaseSpeed = 3.5f,
             };
@@ -945,7 +947,7 @@ namespace Oxide.Plugins
             public bool EnableSpeedOptions = true;
 
             [JsonProperty("DefaultSpeed")]
-            public SpeedConfig DefaultSpeed = new SpeedConfig
+            public SpeedConfig DefaultSpeed = new()
             {
                 BaseSpeed = 1.5f,
             };
@@ -953,41 +955,41 @@ namespace Oxide.Plugins
             [JsonProperty("SpeedsRequiringPermission")]
             public SpeedConfig[] SpeedsRequiringPermission =
             {
-                new SpeedConfig
+                new()
                 {
                     Name = "2x",
                     BaseSpeed = 3f,
                 },
-                new SpeedConfig
+                new()
                 {
                     Name = "4x",
                     BaseSpeed = 6,
                 },
-                new SpeedConfig
+                new()
                 {
                     Name = "1x.quadratic",
                     BaseSpeed = 0.86f,
                     EaseType = EaseType.Quadratic,
                 },
-                new SpeedConfig
+                new()
                 {
                     Name = "1.5x.quadratic",
                     BaseSpeed = 1.29f,
                     EaseType = EaseType.Quadratic,
                 },
-                new SpeedConfig
+                new()
                 {
                     Name = "2x.quadratic",
                     BaseSpeed = 1.72f,
                     EaseType = EaseType.Quadratic,
                 },
-                new SpeedConfig
+                new()
                 {
                     Name = "1x.cubic",
                     BaseSpeed = 0.72f,
                     EaseType = EaseType.Cubic,
                 },
-                new SpeedConfig
+                new()
                 {
                     Name = "2x.cubic",
                     BaseSpeed = 1.44f,
@@ -996,12 +998,10 @@ namespace Oxide.Plugins
             };
 
             [JsonProperty("StaticElevators")]
-            public StaticElevatorConfig StaticElevators = new StaticElevatorConfig();
+            public StaticElevatorConfig StaticElevators = new();
         }
 
-        private Configuration GetDefaultConfig() => new Configuration();
-
-        #endregion
+        private Configuration GetDefaultConfig() => new();
 
         #region Configuration Helpers
 
@@ -1047,8 +1047,7 @@ namespace Oxide.Plugins
 
             foreach (var key in currentWithDefaults.Keys)
             {
-                object currentRawValue;
-                if (currentRaw.TryGetValue(key, out currentRawValue))
+                if (currentRaw.TryGetValue(key, out var currentRawValue))
                 {
                     var defaultDictValue = currentWithDefaults[key] as Dictionary<string, object>;
                     var currentDictValue = currentRawValue as Dictionary<string, object>;
@@ -1074,20 +1073,20 @@ namespace Oxide.Plugins
             return changed;
         }
 
-        protected override void LoadDefaultConfig() => _pluginConfig = GetDefaultConfig();
+        protected override void LoadDefaultConfig() => _config = GetDefaultConfig();
 
         protected override void LoadConfig()
         {
             base.LoadConfig();
             try
             {
-                _pluginConfig = Config.ReadObject<Configuration>();
-                if (_pluginConfig == null)
+                _config = Config.ReadObject<Configuration>();
+                if (_config == null)
                 {
                     throw new JsonException();
                 }
 
-                if (MaybeUpdateConfig(_pluginConfig))
+                if (MaybeUpdateConfig(_config))
                 {
                     LogWarning("Configuration appears to be outdated; updating and saving");
                     SaveConfig();
@@ -1104,8 +1103,10 @@ namespace Oxide.Plugins
         protected override void SaveConfig()
         {
             Log($"Configuration changes saved to {Name}.json");
-            Config.WriteObject(_pluginConfig, true);
+            Config.WriteObject(_config, true);
         }
+
+        #endregion
 
         #endregion
 
@@ -1117,10 +1118,12 @@ namespace Oxide.Plugins
             return args.Length > 0 ? string.Format(message, args) : message;
         }
 
-        private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
+        private void ChatMessage(BasePlayer player, string messageName, params object[] args)
+        {
             player.ChatMessage(string.Format(GetMessage(player.IPlayer, messageName), args));
+        }
 
-        private class Lang
+        private static class Lang
         {
             public const string NoPermissionToFloor = "Deploy.Error.NoPermissionToFloor";
         }
