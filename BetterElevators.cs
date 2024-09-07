@@ -98,13 +98,22 @@ namespace Oxide.Plugins
                 {
                     OnEntitySpawned(lift);
 
-                    if (lift is ElevatorLiftStatic
-                        && !lift.HasFlag(BaseEntity.Flags.Reserved3)
-                        && !lift.HasFlag(BaseEntity.Flags.Reserved4))
+                    if (lift is ElevatorLiftStatic)
                     {
-                        // Fix issue caused by previous version where elevators could not move.
-                        lift.SetFlag(BaseEntity.Flags.Reserved3, true);
-                        lift.SetFlag(BaseEntity.Flags.Reserved4, true);
+                        var ownerElevator = GetOwnerElevator(lift);
+                        if (ownerElevator != null)
+                        {
+                            // Fix issue caused by previous version where elevators could not move.
+                            if (ownerElevator.IsBusy())
+                            {
+                                lift.SetFlag(BaseEntity.Flags.Reserved3, true);
+                                lift.SetFlag(BaseEntity.Flags.Reserved4, true);
+                            }
+                            else
+                            {
+                                lift.NotifyNewFloor(ownerElevator.LiftPositionToFloor(), ownerElevator.Floor);
+                            }
+                        }
                     }
 
                     continue;
