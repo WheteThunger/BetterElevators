@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.9")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.10")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -97,6 +97,16 @@ namespace Oxide.Plugins
                 if (lift != null)
                 {
                     OnEntitySpawned(lift);
+
+                    if (lift is ElevatorLiftStatic
+                        && !lift.HasFlag(BaseEntity.Flags.Reserved3)
+                        && !lift.HasFlag(BaseEntity.Flags.Reserved4))
+                    {
+                        // Fix issue caused by previous version where elevators could not move.
+                        lift.SetFlag(BaseEntity.Flags.Reserved3, true);
+                        lift.SetFlag(BaseEntity.Flags.Reserved4, true);
+                    }
+
                     continue;
                 }
             }
@@ -354,8 +364,9 @@ namespace Oxide.Plugins
             }
 
             lift.SetFlag(BaseEntity.Flags.Busy, true);
-
             topElevator.Invoke(topElevator.ClearBusy, timeToTravel);
+            lift.NotifyNewFloor(targetFloor, topElevator.Floor);
+
             if (topElevator.ioEntity != null)
             {
                 topElevator.ioEntity.SetFlag(BaseEntity.Flags.Busy, true);
