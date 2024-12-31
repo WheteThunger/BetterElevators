@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.10")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.11")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -853,7 +853,11 @@ namespace Oxide.Plugins
 
             private TriggerParentEnclosed _original;
 
+            #if OXIDE_PUBLICIZED
+            public override bool IsClipping(BaseEntity ent)
+            #else
             protected override bool IsClipping(BaseEntity ent)
+            #endif
             {
                 if (AllowHorsesToBypassClippingChecks && ent is BaseRidableAnimal)
                     return false;
