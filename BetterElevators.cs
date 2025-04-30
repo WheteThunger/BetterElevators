@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.11")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.12")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -306,7 +306,6 @@ namespace Oxide.Plugins
 
             if (didStopMovement)
             {
-                CancelHorseDropToGround(lift);
                 elevatorBelow.RequestMoveLiftTo(Math.Min(targetFloor, elevatorBelow.Floor), out _, elevator);
             }
         }
@@ -497,18 +496,6 @@ namespace Oxide.Plugins
         private static Elevator GetOwnerElevator(ElevatorLift lift)
         {
             return ElevatorLiftOwnerProperty?.GetValue(lift) as Elevator;
-        }
-
-        private void CancelHorseDropToGround(ElevatorLift lift)
-        {
-            foreach (var child in lift.children)
-            {
-                var horse = child as RidableHorse;
-                if (horse != null)
-                {
-                    horse.Invoke(() => horse.CancelInvoke(horse.DelayedDropToGround), 0);
-                }
-            }
         }
 
         private bool CanElevatorMoveToFloor(Elevator topElevator, int targetFloor)
@@ -859,7 +846,7 @@ namespace Oxide.Plugins
             protected override bool IsClipping(BaseEntity ent)
             #endif
             {
-                if (AllowHorsesToBypassClippingChecks && ent is BaseRidableAnimal)
+                if (AllowHorsesToBypassClippingChecks && ent is RidableHorse)
                     return false;
 
                 return GamePhysics.CheckOBB(ent.WorldSpaceBounds(), ClipMask, QueryTriggerInteraction.Ignore);
