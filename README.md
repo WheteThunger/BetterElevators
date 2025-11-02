@@ -31,6 +31,7 @@ Note: The permission is checked when you try to deploy the elevator, meaning you
 The following permissions come with this plugin's **default configuration**. Granting one to a player alters the speed of elevators they deploy.
 
 - `betterelevators.speed.2x`
+- `betterelevators.speed.3x`
 - `betterelevators.speed.4x`
 - `betterelevators.speed.1x.quadratic`
 - `betterelevators.speed.1.5x.quadratic`
@@ -63,18 +64,23 @@ Default configuration:
   "EnsureConsistentOwner": true,
   "EnableSpeedOptions": true,
   "DefaultSpeed": {
-    "BaseSpeed": 1.5,
+    "BaseSpeed": 5.0,
     "EaseType": "Linear"
   },
   "SpeedsRequiringPermission": [
     {
       "Name": "2x",
-      "BaseSpeed": 3.0,
+      "BaseSpeed": 10.0,
+      "EaseType": "Linear"
+    },
+    {
+      "Name": "3x",
+      "BaseSpeed": 15.0,
       "EaseType": "Linear"
     },
     {
       "Name": "4x",
-      "BaseSpeed": 6.0,
+      "BaseSpeed": 20.0,
       "EaseType": "Linear"
     },
     {
@@ -143,7 +149,7 @@ Default configuration:
 ### Speed presets
 
 Each speed preset supports the following options.
-- `BaseSpeed` -- Base movement speed (vanilla speed is `1.5` for player elevators, `3.5` for static elevators). If `EaseType` is set to `"Quadratic"` or `"Cubic"`, the total travel time is divided by this number instead.
+- `BaseSpeed` -- Base movement speed (vanilla speed is `5.0` for player elevators, `3.5` for static elevators). If `EaseType` is set to `"Quadratic"` or `"Cubic"`, the total travel time is divided by this number instead.
 - `EaseType` (`"Linear"`, `"Quadratic"`, or `"Cubic"`)
   - Set to `"Linear"` (vanilla/default) to cause the lift to move at a constant speed (the value of `BaseSpeed`).
   - Set to `"Quadratic"` (recommended) to cause the lift to accelerate/decelerate (x² speed).

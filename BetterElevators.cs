@@ -323,7 +323,9 @@ namespace Oxide.Plugins
             if (!TryGetSpeedConfig(topElevator, out var speedConfig))
             {
                 if (GetLiftCounter(lift) != null && timeToTravel > 0)
+                {
                     StartUpdatingLiftCounter(lift, timeToTravel);
+                }
 
                 return null;
             }
@@ -892,7 +894,7 @@ namespace Oxide.Plugins
             public string Name;
 
             [JsonProperty("BaseSpeed")]
-            public float BaseSpeed = 1.5f;
+            public float BaseSpeed = 5f;
 
             [JsonProperty("SpeedIncreasePerFloor", DefaultValueHandling = DefaultValueHandling.Ignore)]
             public float SpeedPerAdditionalFloor = 0;
@@ -952,7 +954,7 @@ namespace Oxide.Plugins
             [JsonProperty("DefaultSpeed")]
             public SpeedConfig DefaultSpeed = new()
             {
-                BaseSpeed = 1.5f,
+                BaseSpeed = 5f,
             };
 
             [JsonProperty("SpeedsRequiringPermission")]
@@ -961,12 +963,17 @@ namespace Oxide.Plugins
                 new()
                 {
                     Name = "2x",
-                    BaseSpeed = 3f,
+                    BaseSpeed = 10f,
+                },
+                new()
+                {
+                    Name = "3x",
+                    BaseSpeed = 15f,
                 },
                 new()
                 {
                     Name = "4x",
-                    BaseSpeed = 6,
+                    BaseSpeed = 20f,
                 },
                 new()
                 {
