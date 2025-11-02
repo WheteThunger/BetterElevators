@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Reflection;
 using UnityEngine;
 
 namespace Oxide.Plugins
@@ -31,8 +30,6 @@ namespace Oxide.Plugins
         private const float ElevatorHeight = 3;
         private const float ElevatorLiftLocalOffsetY = 1;
         private const float MaxCounterUpdateFrequency = 0.4f;
-
-        private static readonly PropertyInfo ElevatorLiftOwnerProperty = typeof(ElevatorLift).GetProperty("owner", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
         private readonly object False = false;
 
@@ -100,7 +97,7 @@ namespace Oxide.Plugins
 
                     if (lift is ElevatorLiftStatic)
                     {
-                        var ownerElevator = GetOwnerElevator(lift);
+                        var ownerElevator = lift.owner;
                         if (ownerElevator != null)
                         {
                             // Fix issue caused by previous version where elevators could not move.
@@ -173,7 +170,7 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(ElevatorLift lift)
         {
-            var topElevator = GetOwnerElevator(lift);
+            var topElevator = lift.owner;
             if (topElevator == null)
                 return;
 
@@ -404,7 +401,7 @@ namespace Oxide.Plugins
             if (lift == null)
                 return null;
 
-            var topElevator = GetOwnerElevator(lift);
+            var topElevator = lift.owner;
             if (topElevator == null)
                 return null;
 
@@ -464,7 +461,7 @@ namespace Oxide.Plugins
                     if (lift != null)
                     {
                         // Get the elevator again since the lift could have changed parent
-                        var nextTopElevator = GetOwnerElevator(lift);
+                        var nextTopElevator = lift.owner;
                         if (nextTopElevator == null)
                             return;
 
@@ -479,8 +476,6 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
-        public static void LogDebug(string message) => Interface.Oxide.LogDebug($"[Better Elevators] {message}");
-        public static void LogInfo(string message) => Interface.Oxide.LogInfo($"[Better Elevators] {message}");
         public static void LogWarning(string message) => Interface.Oxide.LogWarning($"[Better Elevators] {message}");
         public static void LogError(string message) => Interface.Oxide.LogError($"[Better Elevators] {message}");
 
@@ -492,11 +487,6 @@ namespace Oxide.Plugins
         private string GetSpeedPermission(string permissionName) => $"{PermissionSpeedPrefix}.{permissionName}";
 
         private string GetMaxFloorsPermission(int maxFloors) => $"{PermissionMaxFloorsPrefix}.{maxFloors}";
-
-        private static Elevator GetOwnerElevator(ElevatorLift lift)
-        {
-            return ElevatorLiftOwnerProperty?.GetValue(lift) as Elevator;
-        }
 
         private bool CanElevatorMoveToFloor(Elevator topElevator, int targetFloor)
         {
@@ -548,8 +538,10 @@ namespace Oxide.Plugins
         private bool AllowLiftCounter(ElevatorLift lift, Elevator topElevator)
         {
             if (topElevator.IsStatic)
+            {
                 return _config.StaticElevators.EnableLiftCounter
                     && !lift.ShortPrefabName.Contains("elevator_office_lift.static");
+            }
 
             var ownerId = topElevator.OwnerID;
             return !_config.RequirePermissionForLiftCounter
@@ -651,7 +643,7 @@ namespace Oxide.Plugins
         private void UpdateFloorCounter(ElevatorLift lift, PowerCounter counter)
         {
             // Get the elevator on every update, since the lift can be re-parented
-            var topElevator = GetOwnerElevator(lift);
+            var topElevator = lift.owner;
             if (topElevator == null || counter == null)
                 return;
 
@@ -1081,10 +1073,8 @@ namespace Oxide.Plugins
             {
                 if (currentRaw.TryGetValue(key, out var currentRawValue))
                 {
-                    var defaultDictValue = currentWithDefaults[key] as Dictionary<string, object>;
                     var currentDictValue = currentRawValue as Dictionary<string, object>;
-
-                    if (defaultDictValue != null)
+                    if (currentWithDefaults[key] is Dictionary<string, object> defaultDictValue)
                     {
                         if (currentDictValue == null)
                         {
@@ -1092,7 +1082,9 @@ namespace Oxide.Plugins
                             changed = true;
                         }
                         else if (MaybeUpdateConfigDict(defaultDictValue, currentDictValue))
+                        {
                             changed = true;
+                        }
                     }
                 }
                 else
