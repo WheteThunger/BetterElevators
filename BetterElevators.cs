@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.12")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.13")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -26,6 +26,7 @@ namespace Oxide.Plugins
         private const string PrefabElevator = "assets/prefabs/deployable/elevator/elevator.prefab";
         private const string PrefabPowerCounter = "assets/prefabs/deployable/playerioents/counter/counter.prefab";
 
+        private const int ElevatorPowerInputSlot = 2;
         private const int VanillaMaxFloors = 6;
         private const float ElevatorHeight = 3;
         private const float ElevatorLiftLocalOffsetY = 1;
@@ -80,13 +81,6 @@ namespace Oxide.Plugins
                 if (elevator != null)
                 {
                     OnEntitySpawned(elevator);
-                    continue;
-                }
-
-                var elevatorIoEntity = entity as ElevatorIOEntity;
-                if (elevatorIoEntity != null)
-                {
-                    OnEntitySpawned(elevatorIoEntity);
                     continue;
                 }
 
@@ -159,6 +153,17 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(Elevator elevator)
         {
+            var topElevator = GetTopElevator(elevator);
+            if (topElevator != null)
+            {
+                if (IsPowerlessElevator(topElevator))
+                {
+                    topElevator.UpdateHasPower(topElevator.ConsumptionAmount(), ElevatorPowerInputSlot);
+                }
+
+                MaybeToggleLiftCounter(topElevator);
+            }
+
             // This is required to allow placement to succeed above 6 floors
             // Note: This doesn't contribute to the placement guides appearing client-side
             var elevatorSockets = elevator.GetEntityLinks().Select(link => link.socket).OfType<ConstructionSocket_Elevator>();
@@ -185,20 +190,6 @@ namespace Oxide.Plugins
             {
                 AddLiftCounter(lift, topElevator.LiftPositionToFloor() + 1, topElevator.OwnerID, startPowered: ElevatorHasPower(topElevator));
             }
-        }
-
-        private void OnEntitySpawned(ElevatorIOEntity ioEntity)
-        {
-            var topElevator = ioEntity.GetParentEntity() as Elevator;
-            if (topElevator == null)
-                return;
-
-            if (IsPowerlessElevator(topElevator))
-            {
-                ioEntity.SetFlag(IOEntity.Flag_HasPower, true);
-            }
-
-            MaybeToggleLiftCounter(topElevator);
         }
 
         private object CanBuild(Planner planner, Construction construction, Construction.Target target)
@@ -372,11 +363,8 @@ namespace Oxide.Plugins
             topElevator.Invoke(topElevator.ClearBusy, timeToTravel);
             lift.NotifyNewFloor(targetFloor, topElevator.Floor);
 
-            if (topElevator.ioEntity != null)
-            {
-                topElevator.ioEntity.SetFlag(BaseEntity.Flags.Busy, true);
-                topElevator.ioEntity.SendChangedToRoot(forceUpdate: true);
-            }
+            topElevator.SetFlag(BaseEntity.Flags.Busy, true);
+            topElevator.SendChangedToRoot(forceUpdate: true);
 
             if (GetLiftCounter(lift) != null && timeToTravel > 0)
             {
@@ -431,45 +419,36 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private void OnInputUpdate(ElevatorIOEntity ioEntity, int inputAmount)
+        private void OnInputUpdate(Elevator elevator, int inputAmount, int inputSlot)
         {
-            if (ioEntity == null)
+            if (inputSlot != ElevatorPowerInputSlot)
                 return;
 
-            var topElevator = ioEntity.GetParentEntity() as Elevator;
-            if (topElevator != null)
+            var topElevator = GetTopElevator(elevator);
+            if (topElevator == null)
+                return;
+
+            if (!topElevator.liftEntity.TryGet(true, out var lift))
+                return;
+
+            var shouldGivePower = elevator.IsTop && IsPowerlessElevator(topElevator);
+            var topElevator2 = topElevator;
+
+            NextTick(() =>
             {
-                var ioEntity2 = ioEntity;
-                if (!topElevator.liftEntity.TryGet(true, out var lift))
+                if (shouldGivePower && topElevator2 != null && !topElevator2.IsPowered())
+                {
+                    topElevator2.UpdateHasPower(topElevator2.ConsumptionAmount(), ElevatorPowerInputSlot);
+                }
+
+                // Get the elevator again since the lift could have changed parent
+                var nextTopElevator = lift.owner;
+                if (nextTopElevator == null)
                     return;
 
-                var isPowerless = IsPowerlessElevator(topElevator);
-
-                NextTick(() =>
-                {
-                    if (isPowerless)
-                    {
-                        // Allow electricity to function normally when there is a wire plugged in
-                        // For example, so trap base designs can prevent players from using the buttons
-                        // When no wire is connected, force power to be on
-                        if (ioEntity2.inputs[0].connectedTo.Get() == null)
-                        {
-                            ioEntity2.SetFlag(IOEntity.Flag_HasPower, true);
-                        }
-                    }
-
-                    if (lift != null)
-                    {
-                        // Get the elevator again since the lift could have changed parent
-                        var nextTopElevator = lift.owner;
-                        if (nextTopElevator == null)
-                            return;
-
-                        // Update the power state of the lift counter to match elevator power state
-                        MaybeToggleLiftCounter(nextTopElevator);
-                    }
-                });
-            }
+                // Update the power state of the lift counter to match elevator power state
+                MaybeToggleLiftCounter(nextTopElevator);
+            });
         }
 
         #endregion
@@ -494,7 +473,7 @@ namespace Oxide.Plugins
             if (topElevator.IsBusy())
                 return false;
 
-            if (!topElevator.IsStatic && topElevator.ioEntity != null && !topElevator.ioEntity.IsPowered())
+            if (!topElevator.IsStatic && !topElevator.IsPowered())
                 return false;
 
             if (!topElevator.IsValidFloor(targetFloor))
@@ -575,7 +554,7 @@ namespace Oxide.Plugins
 
         private bool ElevatorHasPower(Elevator topElevator)
         {
-            return topElevator.IsStatic || topElevator.ioEntity != null && topElevator.ioEntity.IsPowered();
+            return topElevator.IsStatic || topElevator.IsPowered();
         }
 
         private void RemoveGroundWatch(BaseEntity entity)
