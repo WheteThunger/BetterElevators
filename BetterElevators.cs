@@ -88,25 +88,6 @@ namespace Oxide.Plugins
                 if (lift != null)
                 {
                     OnEntitySpawned(lift);
-
-                    if (lift is ElevatorLiftStatic)
-                    {
-                        var ownerElevator = lift.owner;
-                        if (ownerElevator != null)
-                        {
-                            // Fix issue caused by previous version where elevators could not move.
-                            if (ownerElevator.IsBusy())
-                            {
-                                lift.SetFlag(BaseEntity.Flags.Reserved3, true);
-                                lift.SetFlag(BaseEntity.Flags.Reserved4, true);
-                            }
-                            else
-                            {
-                                lift.NotifyNewFloor(ownerElevator.LiftPositionToFloor(), ownerElevator.Floor);
-                            }
-                        }
-                    }
-
                     continue;
                 }
             }
