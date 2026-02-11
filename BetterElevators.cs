@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.14")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.15")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -80,14 +80,6 @@ namespace Oxide.Plugins
                 var elevator = entity as Elevator;
                 if (elevator != null)
                 {
-                    if (elevator is ElevatorStatic { IsTop: true } elevatorStatic && elevatorStatic.IsInvoking(elevatorStatic.UpdateFloorPositions))
-                    {
-                        // Fixes possible ArgumentOutOfRangeException when LiftPositionToFloor is called by
-                        // OnEntitySpawned(lift), due to the floor positions not being set up yet.
-                        elevatorStatic.CancelInvoke(elevatorStatic.UpdateFloorPositions);
-                        elevatorStatic.UpdateFloorPositions();
-                    }
-
                     OnEntitySpawned(elevator);
                     continue;
                 }
@@ -95,6 +87,14 @@ namespace Oxide.Plugins
                 var lift = entity as ElevatorLift;
                 if (lift != null)
                 {
+                    if (lift.owner is ElevatorStatic { IsTop: true } elevatorStatic && elevatorStatic.IsInvoking(elevatorStatic.UpdateFloorPositions))
+                    {
+                        // Fixes possible ArgumentOutOfRangeException when LiftPositionToFloor is called by
+                        // OnEntitySpawned(lift), due to the floor positions not being set up yet.
+                        elevatorStatic.CancelInvoke(elevatorStatic.UpdateFloorPositions);
+                        elevatorStatic.UpdateFloorPositions();
+                    }
+
                     OnEntitySpawned(lift);
                     continue;
                 }
