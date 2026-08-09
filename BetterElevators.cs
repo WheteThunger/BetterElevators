@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.15")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.16")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -367,6 +367,9 @@ namespace Oxide.Plugins
 
         private void OnEntitySaved(Elevator elevator, BaseNetworkable.SaveInfo info)
         {
+            if (elevator.IsStatic)
+                return;
+
             // This is where the magic happens... thanks to @JakeRich
             if (!info.forDisk)
             {
@@ -510,7 +513,8 @@ namespace Oxide.Plugins
             if (topElevator.IsStatic)
             {
                 return _config.StaticElevators.EnableLiftCounter
-                    && !lift.ShortPrefabName.Contains("elevator_office_lift.static");
+                    && !lift.ShortPrefabName.Contains("elevator_office_lift.static")
+                    && lift is not ApartmentElevatorLift;
             }
 
             var ownerId = topElevator.OwnerID;
