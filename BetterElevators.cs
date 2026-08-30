@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Better Elevators", "WhiteThunder", "1.2.16")]
+    [Info("Better Elevators", "WhiteThunder", "1.2.17")]
     [Description("Allows elevators to be taller, faster, powerless, and more.")]
     internal class BetterElevators : CovalencePlugin
     {
@@ -344,17 +344,18 @@ namespace Oxide.Plugins
             LeanTween.moveY(lift.gameObject, worldSpaceFloorPosition.y, timeToTravel).setEase(leanTweenType);
 
             // Duplicating vanilla logic since this is replacing default movement
-            topElevator.SetFlag(BaseEntity.Flags.Busy, true);
             if (targetFloor < topElevator.Floor)
             {
                 lift.ToggleHurtTrigger(true);
             }
 
-            lift.SetFlag(BaseEntity.Flags.Busy, true);
+            using var liftScope = lift.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+            liftScope.Set(BaseEntity.Flags.Busy, true);
             topElevator.Invoke(topElevator.ClearBusy, timeToTravel);
             lift.NotifyNewFloor(targetFloor, topElevator.Floor);
 
-            topElevator.SetFlag(BaseEntity.Flags.Busy, true);
+            using var elevatorScope = topElevator.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+            elevatorScope.Set(BaseEntity.Flags.Busy, true);
             topElevator.SendChangedToRoot(forceUpdate: true);
 
             if (GetLiftCounter(lift) != null && timeToTravel > 0)
@@ -681,8 +682,9 @@ namespace Oxide.Plugins
 
         private void InitializeCounter(PowerCounter counter, int floor)
         {
-            counter.SetFlag(IOEntity.Flag_HasPower, true);
-            counter.SetFlag(BaseEntity.Flags.Busy, false);
+            using var flagsScope = counter.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+            flagsScope.Set(IOEntity.Flag_HasPower, true);
+            flagsScope.Set(BaseEntity.Flags.Busy, false);
             counter.counterNumber = floor;
             counter.targetCounterNumber = floor;
             counter.SendNetworkUpdate();
@@ -690,8 +692,9 @@ namespace Oxide.Plugins
 
         private void ResetCounter(PowerCounter counter)
         {
-            counter.SetFlag(IOEntity.Flag_HasPower, false);
-            counter.SetFlag(BaseEntity.Flags.Busy, true);
+            using var flagsScope = counter.StartSetFlags(BaseEntity.FlagsUpdateMode.SendNetworkUpdate_Flags);
+            flagsScope.Set(IOEntity.Flag_HasPower, false);
+            flagsScope.Set(BaseEntity.Flags.Busy, true);
             counter.counterNumber = 0;
             counter.targetCounterNumber = 0;
             counter.SendNetworkUpdate();
